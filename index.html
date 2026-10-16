@@ -217,16 +217,11 @@ input,select,textarea{font:inherit; color:inherit}
   position:fixed; z-index:60; left:50%; translate:-50% 0;
   bottom:calc(12px + env(safe-area-inset-bottom,0px));
   width:min(460px, calc(100% - 2 * max(16px, env(safe-area-inset-left,0px))));
-  transform-origin:50% 100%;
-  transition:scale .45s var(--spring), width .45s var(--spring);
 }
 #tabbar .gseg{padding:5px}
 #tabbar .gseg-item{gap:3px; padding:7px 2px 6px; font-size:11px}
 #tabbar .gi svg{width:23px; height:23px}
 #tabbar .gl{transition:opacity .25s}
-/* compact = pure visual scale; layout never changes, so the capsule never has to re-measure */
-#tabbar.compact{scale:.84; translate:-50% 10px}
-#tabbar.compact .gl{opacity:0}
 
 /* ---------- buttons ---------- */
 .btn{
@@ -402,7 +397,6 @@ input,select,textarea{font:inherit; color:inherit}
   display:flex; align-items:center; gap:10px; padding:8px 8px 8px 10px; border-radius:999px; max-width:calc(100% - 32px);
   transition:bottom .4s var(--spring);
 }
-#rest.lo{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 #rest svg.rg{width:38px; height:38px; flex:none; rotate:-90deg}
 #rest .rt{display:flex; flex-direction:column; line-height:1.1; min-width:62px}
 #rest .rt b{font:700 22px/1 var(--f-num); font-variant-numeric:tabular-nums}
@@ -663,7 +657,8 @@ input[type="date"]::-webkit-date-and-time-value{text-align:left}
 html.locked, html.locked body{overflow:hidden}
 .chartbox, .tblwrap, .box-fb{-webkit-overflow-scrolling:touch}
 /* keyboard open: move floating bars out of the way */
-#tabbar, #rest{transition:scale .4s var(--ease), translate .4s var(--ease), transform .3s var(--ease), opacity .25s, bottom .4s var(--ease)}
+#tabbar{transition:transform .3s var(--ease), opacity .25s}
+#rest{transition:transform .3s var(--ease), opacity .25s}
 html.kb #tabbar, html.kb #rest{transform:translateY(160%); opacity:0; pointer-events:none}
 @media (pointer:coarse){
   .gbtn{width:44px; height:44px}
@@ -839,9 +834,6 @@ button, a, input, textarea, select, summary, [role="button"], .gseg-item{
   touch-action:manipulation;
 }
 @media (pointer:coarse){
-  /* Scroll must not make the bottom navigation grow/shrink on iPhone. */
-  #tabbar, #tabbar.compact{scale:1;translate:-50% 0}
-  #tabbar.compact .gl{opacity:1}
   #tabbar .gseg-scale{transform:none}
   .gbtn:active, .btn:active, .chk:active{scale:1}
 }
@@ -1228,7 +1220,7 @@ class GSeg {
       const i = clamp(this.idx() + (e.key === 'ArrowRight' ? 1 : -1), 0, this.items.length - 1);
       this._select(i, true); this.btns[i].focus(); e.preventDefault();
     });
-    // while the bar itself is resizing (compact mode), follow it instantly instead of springing after it
+    // Keep the capsule aligned when its row changes size.
     this.ro = new ResizeObserver(() => {
       if (this.drag) return;
       this.el.classList.add('noanim'); this._measure(); const m = this.metrics[this.idx()];
@@ -3525,7 +3517,6 @@ function go(tab) {
   renderTab(tab, true);
   UI.deferBox = false;
   scrollTo(0, UI.scroll[tab] || 0);
-  setCompact(false);
 }
 function refresh() {
   renderTab(UI.tab, false);
@@ -3534,30 +3525,7 @@ function refresh() {
 }
 onChange(o => { if (!o.quiet) refresh(); });
 
-/* tab bar shrinks while scrolling down */
-let lastY = scrollY, compact = false;
-function setCompact(v) {
-  if (matchMedia('(pointer:coarse)').matches) v = false;
-  if (v === compact) return;
-  compact = v;
-  $('#tabbar').classList.toggle('compact', v);
-  $('#rest').classList.toggle('lo', v);
-}
-let scrollAcc = 0, lastFlip = 0;
-addEventListener('scroll', () => {
-  if (matchMedia('(pointer:coarse)').matches) { lastY = scrollY; scrollAcc = 0; return; }
-  const y = scrollY, max = document.documentElement.scrollHeight - innerHeight;
-  // ignore iOS rubber-band overscroll and anything while a finger is on the bar
-  if (y < 0 || y > max || $('#tabseg').classList.contains('pressing')) { lastY = clamp(y, 0, Math.max(0, max)); scrollAcc = 0; return; }
-  const dy = y - lastY; lastY = y;
-  if ((dy > 0) !== (scrollAcc > 0)) scrollAcc = 0;
-  scrollAcc += dy;
-  const now = performance.now();
-  if (now - lastFlip < 350) return;
-  if (y < 24) { if (compact) { setCompact(false); lastFlip = now; } return; }
-  if (scrollAcc > 48 && y > 80 && !compact) { setCompact(true); lastFlip = now; scrollAcc = 0; }
-  else if (scrollAcc < -36 && compact) { setCompact(false); lastFlip = now; scrollAcc = 0; }
-}, { passive: true });
+/* Navigation keeps the same size and bottom inset in every input mode. */
 
 /* elapsed clocks */
 setInterval(() => {
