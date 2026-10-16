@@ -829,6 +829,33 @@ input[type="date"]::-webkit-calendar-picker-indicator, input[type="time"]::-webk
 @keyframes wlDot{from{transform:scale(0)}}
 @media (prefers-reduced-motion: reduce){ .wl-logo, .wl-logo b, .wl-logo i{animation:none !important} }
 
+/* iOS Safari: prevent form-focus/double-tap auto zoom without removing pinch zoom. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not(.sess-title)), textarea, select { font-size:16px; }
+.inp.big{font-size:34px}
+.timeboxes .inp{font-size:28px}
+.set-row input{font-size:19px}
+.sess-stats input{font-size:20px}
+button, a, input, textarea, select, summary, [role="button"], .gseg-item{
+  touch-action:manipulation;
+}
+@media (pointer:coarse){
+  /* Scroll must not make the bottom navigation grow/shrink on iPhone. */
+  #tabbar, #tabbar.compact{scale:1;translate:-50% 0}
+  #tabbar.compact .gl{opacity:1}
+  #tabbar .gseg-scale{transform:none}
+  .gbtn:active, .btn:active, .chk:active{scale:1}
+}
+/* ---------- previous workout shortcuts ---------- */
+.reuse-list{display:flex;flex-direction:column;gap:8px}
+.reuse-item{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 14px;border-radius:14px;background:var(--paper-2)}
+.reuse-main{flex:1 1 170px;min-width:0}
+.reuse-main strong{display:block;font-size:15px;font-weight:750;overflow-wrap:anywhere}
+.reuse-main small{display:block;color:var(--ink-3);font-size:12px;margin-top:3px}
+.reuse-btns{display:flex;gap:8px;flex-wrap:wrap}
+.reuse-btns .btn{font-size:13px;min-height:42px;padding:0 12px}
+.reuse-note{font-size:12px;color:var(--ink-3);margin:2px 0 0;line-height:1.5}
+@media(max-width:390px){.reuse-btns{width:100%}.reuse-btns .btn{flex:1;padding:0 8px}}
+
 /* Strava — in Settings. Connection data is kept separate from workout backups. */
 .stra-card{border-radius:22px;padding:18px;border:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column;gap:12px}
 .stra-head{display:flex;align-items:center;gap:10px}
@@ -2687,6 +2714,75 @@ function renderToday(anim) {
 }
 
 /* ---------- LIFT ---------- */
+function recentReusableLifts(limit = 4) {
+  const seen = new Set();
+  return S.lifts.slice().sort(byDateDesc).filter(l => {
+    if (!l || !Array.isArray(l.items) || !l.items.length || l.ex === true) return false;
+    const key = `${(l.title || '').trim().toLowerCase()}|${l.items.map(it => it.eid).join(',')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
+}
+/* Deliberately reuse real values, but never mark sets done until actually logged. */
+function copyPreviousItems(session, done = false) {
+  return (session.items || []).map(it => ({
+    eid: it.eid,
+    sets: (it.sets || []).filter(s => num(s.r) > 0).map(s => ({
+      w: num(s.w) ?? 0, r: num(s.r), rpe: String(s.rpe || ''), warm: !!s.warm,
+      ...(done ? {} : { done: false, pw: null, pr: null }),
+    })),
+  })).filter(it => it.sets.length);
+}
+function startFromHistory(id) {
+  const old = S.lifts.find(l => l.id === id);
+  if (!old) { toast('找不到這筆重訓紀錄'); return; }
+  if (S.active) { toast('請先完成或捨棄進行中的訓練'); go('lift'); return; }
+  const items = copyPreviousItems(old);
+  if (!items.length) { toast('這筆紀錄沒有可複製的組數'); return; }
+  S.active = { id: uid(), date: todayISO(), start: Date.now(), tpl: old.tpl || null,
+    title: old.title || '重訓', items, note: '' };
+  UI.xmenu = -1;
+  commit({ quiet: true });
+  Wake.on();
+  if (sheetCur) closeSheet(true);
+  if (UI.tab !== 'lift') go('lift'); else { renderLift(false); scrollTo(0, 0); }
+  toast('已帶入上次重量與次數，完成後再儲存');
+}
+function openQuickLog(id, from) {
+  if (S.active) { toast('請先完成或捨棄進行中的訓練'); return; }
+  const old = S.lifts.find(l => l.id === id);
+  if (!old) return;
+  const items = copyPreviousItems(old, true);
+  if (!items.length) { toast('這筆紀錄沒有可複製的組數'); return; }
+  openSheet({ from, label: '快速登記重訓', render: body => {
+    body.innerHTML = `<div class="eyebrow">從 ${fmtDate(old.date)} 帶入</div>
+      <h2 class="stitle">${esc(old.title || '重訓')}</h2>
+      <p class="muted small">將上次的動作、重量與次數記成另一筆訓練。請確認這次確實完成相同內容；如果需要調整，請改用「帶入編輯」。</p>
+      <div class="kv"><div><b>${items.length}</b><span>動作數</span></div><div><b>${sum(items, it => it.sets.filter(s => !s.warm).length)}</b><span>有效組</span></div></div>
+      <div class="formgrid" style="margin:14px 0">
+        <div class="field"><label for="quick-date">實際訓練日期</label><input id="quick-date" type="date" class="inp" value="${todayISO()}"></div>
+        <div class="field"><label for="quick-min">這次訓練時間（分鐘）</label><input id="quick-min" class="inp" inputmode="numeric" type="number" min="1" max="720" value="${Math.max(1, Math.round((num(old.dur) || 3600) / 60))}"></div>
+      </div>
+      <button type="button" class="btn btn-lift btn-block" data-act="reuse-confirm" data-id="${esc(old.id)}">確認加入紀錄</button>`;
+  } });
+}
+function logHistoryCopy(id) {
+  if (S.active) { toast('請先完成進行中的訓練'); return; }
+  const old = S.lifts.find(l => l.id === id);
+  if (!old) { toast('找不到這筆重訓紀錄'); return; }
+  const date = $('#quick-date')?.value;
+  const durMin = num($('#quick-min')?.value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || isoOf(dateOf(date)) !== date) { toast('請選擇有效日期'); return; }
+  if (!Number.isFinite(durMin) || durMin < 1 || durMin > 720) { toast('訓練時間請填 1–720 分鐘'); return; }
+  const items = copyPreviousItems(old, true);
+  if (!items.length) { toast('這筆紀錄沒有可複製的組數'); return; }
+  S.lifts.push({ id: uid(), date, start: Date.now(), dur: Math.round(durMin * 60),
+    tpl: old.tpl || null, title: old.title || '重訓', items, note: '' });
+  closeSheet(true);
+  commit();
+  toast('已新增一筆重訓紀錄');
+}
 function renderLift(anim) {
   const home = $('#liftHome'), sess = $('#liftSession');
   if (S.active) {
@@ -2698,10 +2794,20 @@ function renderLift(anim) {
   $('#liftHead').innerHTML = `<div><h1 class="title">重訓</h1></div>`;
   const mainLifts = ['squat', 'bench', 'deadlift', 'ohp'];
   const lifts = S.lifts.slice().sort(byDateDesc).slice(0, 6);
+  const reusable = recentReusableLifts();
   $('#liftBody').innerHTML = `
     <div class="tplmenu">${S.templates.map((t, i) => `<button type="button" class="tpl-pill glass gen" style="--d:${i};--c:${tplColor(t)}" data-act="tpl-open" data-i="${i}"><i>${i + 1}</i><span class="gl"><span class="gl-in"><span>${esc(t.name)}</span><span class="en">${esc(t.en)}</span></span></span></button>`).join('')}
       <button type="button" class="tpl-pill glass gen" style="--d:5;--c:var(--ink-3)" data-act="start-blank"><i>+</i><span class="gl"><span class="gl-in"><span>空白訓練</span><span class="en">BLANK</span></span></span></button></div>
-    <section class="card spot gen" style="--d:6">
+    <section class="card gen" style="--d:6" aria-label="快速加入過去重訓">
+      <div class="card-h"><h2 class="sec">快速加入過去重訓</h2><span class="small faint">最近使用</span></div>
+      ${reusable.length ? `<div class="reuse-list">${reusable.map(l => `<div class="reuse-item">
+        <div class="reuse-main"><strong>${esc(l.title || '重訓')}</strong><small>${esc(fmtDate(l.date))} · ${l.items.length} 動作 · ${sessSets(l)} 組</small></div>
+        <div class="reuse-btns"><button type="button" class="btn btn-soft" data-act="reuse-edit" data-id="${esc(l.id)}">帶入編輯</button>
+        <button type="button" class="btn btn-lift" data-act="reuse-log" data-id="${esc(l.id)}">快速記錄</button></div>
+      </div>`).join('')}</div>` : '<div class="empty">尚無過去重訓，第一次記錄完成後就會顯示在這裡。</div>'}
+      <p class="reuse-note">「帶入編輯」複製上次重量及次數，不會直接計入完成次數；「快速記錄」需確認內容及日期後才會儲存。</p>
+    </section>
+    <section class="card spot gen" style="--d:7">
       <div class="card-h"><h2 class="sec">主項最佳（估算 1RM）</h2><span class="small faint">e1RM = 重量 ×（1 + 次數 ÷ 30）</span></div>
       <div class="prs">${mainLifts.map(id => { const p = prOf(id); return `<div class="p"><span>${exById(id).name}</span><b>${p.e1 ? tick(Math.round(p.e1 * 10) / 10, 1) : '0'}<span class="unit">kg</span></b><span class="small faint">${p.date ? '最重 ' + fmtW(p.w) + ' kg · ' + fmtShort(p.date) : '尚無紀錄'}</span></div>`; }).join('')}</div>
     </section>
@@ -2772,7 +2878,8 @@ function xcardHTML(a, it, xi) {
       <div class="set-head"><span>組</span><span>${e.bw ? '加重 kg' : '重量 kg'}</span><span>${t ? '秒' : '次數'}</span><span>RPE</span><span></span></div>
       ${rows}
     </div>
-    <div class="xfoot"><button type="button" class="btn btn-soft" data-act="add-set" data-xi="${xi}" style="min-height:38px">${IC.plus} 加一組</button>
+    <div class="xfoot"><div class="reuse-btns"><button type="button" class="btn btn-soft" data-act="add-set" data-xi="${xi}" style="min-height:38px">${IC.plus} 加一組</button>
+      ${lp ? `<button type="button" class="btn btn-soft" data-act="x-use-last" data-xi="${xi}" style="min-height:38px">沿用上次組數</button>` : ''}</div>
       <span class="small faint">${best ? `本次 e1RM <b class="num" style="color:var(--ink);font-size:16px">${fmtN(best, 1)}</b> kg` : (t ? '計時動作' : '打勾的組會算進訓練量')}</span></div>
   </section>`;
 }
@@ -3430,6 +3537,7 @@ onChange(o => { if (!o.quiet) refresh(); });
 /* tab bar shrinks while scrolling down */
 let lastY = scrollY, compact = false;
 function setCompact(v) {
+  if (matchMedia('(pointer:coarse)').matches) v = false;
   if (v === compact) return;
   compact = v;
   $('#tabbar').classList.toggle('compact', v);
@@ -3437,6 +3545,7 @@ function setCompact(v) {
 }
 let scrollAcc = 0, lastFlip = 0;
 addEventListener('scroll', () => {
+  if (matchMedia('(pointer:coarse)').matches) { lastY = scrollY; scrollAcc = 0; return; }
   const y = scrollY, max = document.documentElement.scrollHeight - innerHeight;
   // ignore iOS rubber-band overscroll and anything while a finger is on the bar
   if (y < 0 || y > max || $('#tabseg').classList.contains('pressing')) { lastY = clamp(y, 0, Math.max(0, max)); scrollAcc = 0; return; }
@@ -3477,6 +3586,20 @@ const ACT = {
   'tpl-rm': b => { const t = S.templates[+b.dataset.i]; t.ex = t.ex.filter(e => e !== b.dataset.eid); commit(); rerenderSheet(); },
   'tpl-add': b => { const i = +b.dataset.i; closeSheet(true); openPicker({ mode: 'tpl', i }); },
   'start-blank': () => startSession({}),
+  'reuse-edit': b => startFromHistory(b.dataset.id),
+  'reuse-log': b => openQuickLog(b.dataset.id, b),
+  'reuse-confirm': b => logHistoryCopy(b.dataset.id),
+  'x-use-last': b => {
+    const xi = +b.dataset.xi, it = S.active?.items[xi];
+    if (!it) return;
+    const previous = lastPerf(it.eid, S.active.editId);
+    if (!previous) { toast('這個動作沒有上次紀錄'); return; }
+    // Replacing current work requires a second click; simple empty drafts fill immediately.
+    if (it.sets.some(s => s.done || num(s.w) != null || num(s.r) != null) && !armed(b, '再按一次，覆蓋目前組數')) return;
+    it.sets = copyPreviousItems({ items: [previous.item] })[0]?.sets || it.sets;
+    commit({ quiet: true }); refreshCard(xi);
+    toast('已套用上次重量與次數');
+  },
   'add-ex': () => openPicker({ mode: 'session' }),
   'pick-g': b => { UI.picker.g = b.dataset.g; $$('.chip', sheetCur.body).forEach(c => c.setAttribute('aria-pressed', String(c === b))); fillPicker(); },
   'pick-ex': b => pickExercise(b.dataset.eid),
@@ -3572,7 +3695,7 @@ const ACT = {
   'entry-repeat': b => {
     const l = S.lifts.find(x => x.id === b.dataset.id); if (!l) return;
     if (S.active) { toast('先完成或捨棄進行中的訓練'); return; }
-    closeSheet(true); startSession({ tplId: l.tpl, eids: l.items.map(i => i.eid), title: l.title });
+    startFromHistory(l.id);
   },
   'backup-copy': async b => {
     const text = JSON.stringify(S);
@@ -3654,11 +3777,9 @@ const COARSE = matchMedia('(pointer: coarse)');
 const isField = el => el && el.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select');
 document.addEventListener('focusin', e => { if (COARSE.matches && isField(e.target)) document.documentElement.classList.add('kb'); });
 document.addEventListener('focusout', () => setTimeout(() => { if (!isField(document.activeElement)) document.documentElement.classList.remove('kb'); }, 60));
-// keep the focused set row visible above the keyboard
-if (window.visualViewport) visualViewport.addEventListener('resize', () => {
-  const a = document.activeElement;
-  if (COARSE.matches && isField(a) && !a.closest('.sheet')) setTimeout(() => a.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
-});
+// Safari already scrolls focused inputs into view. Repeated visualViewport-resize
+// scrollIntoView(center, smooth) caused bouncing while the keyboard opened.
+// Leave native keyboard handling in control instead of forcing any zoom/scroll.
 // lock page scroll behind sheets so iOS doesn't scroll the page underneath
 new MutationObserver(() => document.documentElement.classList.toggle('locked', !!document.querySelector('.sheet-wrap'))).observe(document.body, { childList: true });
 // "next" key on the number pad moves through set inputs
