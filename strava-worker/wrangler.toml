@@ -1,0 +1,15 @@
+name = "jianren-strava"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+APP_URL = "https://easylearnfromtw.github.io/Builder/"
+
+# Deploying requires adding your own STRAVA_SESSIONS KV binding.
+# Get a real namespace ID from Cloudflare → Storage & databases → KV.
+# [[kv_namespaces]]
+# binding = "STRAVA_SESSIONS"
+# id = "YOUR_ACTUAL_KV_NAMESPACE_ID"
+# STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STATE_SECRET are **secrets**.
+# Never paste them into this file or upload them to GitHub.
