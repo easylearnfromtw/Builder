@@ -864,6 +864,16 @@ button, a, input, textarea, select, summary, [role="button"], .gseg-item{
 .stra-guide .field{margin-top:9px}
 .stra-kpi{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .stra-tag{background:var(--lift-soft);color:var(--lift-2);padding:3px 9px;border-radius:99px;font-size:12px;font-weight:700}
+
+/* Training release 2026-10-16: focused pages and cumulative activity points. */
+.release-label{display:block;color:var(--ink-3);font-size:10px;line-height:1.4;margin-top:2px}
+.training-intro{padding:10px 2px 4px}.training-intro h2{font-size:30px;line-height:1.2;margin:8px 0}.training-intro p{margin:0 0 12px}
+.body-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.body-tile{position:relative;display:flex;flex-direction:column;gap:12px;text-align:left;min-height:146px;padding:20px;border:1px solid var(--line);border-radius:24px;background:var(--paper);cursor:pointer}
+.body-tile:nth-child(3n+1){background:var(--lift-soft)}.body-tile b{font-size:26px;line-height:1.2}.body-tile>span:last-child{font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;gap:12px}.body-number{font:600 11px var(--f-num);letter-spacing:.12em;color:var(--ink-3)}
+.page-heading{display:flex;flex-direction:column;align-items:flex-start;gap:16px;padding:10px 0}.page-heading h1,.page-heading p{margin:0}
+.exercise-options{display:flex;flex-direction:column;gap:10px}.exercise-option{display:flex;align-items:center;gap:14px;padding:20px 16px;background:var(--paper);border:1px solid var(--line);border-radius:20px;cursor:pointer}.exercise-option:has(input:checked){border-color:var(--lift);background:var(--lift-soft)}.exercise-option input{width:22px;height:22px;accent-color:var(--lift);flex:none}.exercise-option b,.exercise-option small{display:block}.exercise-option small{margin-top:6px;color:var(--ink-2);line-height:1.5}.group-actions{display:flex;flex-direction:column;gap:12px;background:var(--paper);border-radius:22px;padding:18px}
+.run-hero{padding:26px 22px;border-radius:28px;background:var(--run-soft)}.run-distance{font:750 clamp(44px,12vw,72px)/1.3 var(--f-num);letter-spacing:-.04em;margin-top:8px}.run-distance small{font-size:20px;letter-spacing:0}.run-hero p{margin:10px 0 18px}.run-hero p:last-child{margin:12px 0 0}.feature-link{text-align:left;border:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column;gap:10px}.feature-link b{font-size:16px}.run-advanced{border-top:1px solid var(--line);padding-top:16px}.run-advanced summary,details.card summary{cursor:pointer;font-weight:700;min-height:34px}.run-advanced summary span,details.card summary span{display:block;font-weight:400;margin-top:5px}.score-value{font:700 clamp(28px,7vw,40px)/1.5 var(--f-num);overflow-wrap:anywhere}.score-value small{font-size:13px;color:var(--ink-2)}.score-entry{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;cursor:pointer}.score-entry small{display:block;color:var(--ink-3);margin-top:5px}.score-entry strong{font:700 22px var(--f-num);color:var(--lift-2)}.fit-n{overflow-wrap:anywhere;min-width:0}.fit-top{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -887,7 +897,7 @@ button, a, input, textarea, select, summary, [role="button"], .gseg-item{
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">訓練新版 · 10.16</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -904,7 +914,7 @@ button, a, input, textarea, select, summary, [role="button"], .gseg-item{
   <section class="view" id="v-lift" data-view="lift" hidden>
     <div class="view" id="liftHome">
       <div class="head" id="liftHead"></div>
-      <div class="boxwrap" id="boxWrap">
+      <div class="boxwrap" id="boxWrap" hidden>
         <canvas id="boxCanvas" aria-label="訓練菜單收納盒：五張菜單卡片"></canvas>
         <div class="box-hint" id="boxHint">滑過卡片看內容，點一下打開菜單</div>
         <div class="cur-ring" id="curRing"></div><div class="cur-dot" id="curDot"></div>
@@ -918,6 +928,7 @@ button, a, input, textarea, select, summary, [role="button"], .gseg-item{
   <section class="view" id="v-run" data-view="run" hidden></section>
   <section class="view" id="v-log" data-view="log" hidden></section>
   <section class="view" id="v-stats" data-view="stats" hidden></section>
+  <section class="view" id="v-score" data-view="score" hidden></section>
 </main>
 
 <nav id="tabbar" aria-label="主要分頁"><div id="tabseg"></div></nav>
@@ -1026,7 +1037,7 @@ const IC = {
 };
 /* ================= data ================= */
 const STORE_KEY = 'kai-log-v1';
-const GROUPS = { chest: '胸', back: '背', legs: '腿', shoulders: '肩', arms: '手臂', core: '核心' };
+const GROUPS = { chest: '胸', back: '背', shoulders: '肩', arms: '手臂', core: '腹／核心', legs: '腿' };
 const GROUP_EN = { chest: 'CHEST', back: 'BACK', legs: 'LEGS', shoulders: 'SHOULDERS', arms: 'ARMS', core: 'CORE' };
 const RUN_TYPES = [
   { value: 'easy', label: '輕鬆跑' }, { value: 'tempo', label: '節奏跑' }, { value: 'interval', label: '間歇' },
@@ -2132,75 +2143,81 @@ function interp(tbl, x) {
 const RUN_MET = [[6.4, 6.0], [8.0, 8.3], [9.7, 9.8], [10.8, 10.5], [11.3, 11.0], [12.1, 11.8], [12.9, 12.3], [13.8, 12.8], [14.5, 14.5], [16.1, 16.0]];
 const runMET = v => interp(RUN_MET, v);
 
-/* Arem 2015 pooled cohorts: HR ~0.80 below 1x guideline (7.5 MET-h = 450 MET-min/wk), 0.69 at 1–2x, 0.63 at 2–3x, 0.61 at 3–5x (plateau).
-   The aerobic score follows that share of the maximum observed risk reduction. */
-const AER_CURVE = [[0, 0], [225, 20 / 39], [450, 31 / 39], [900, 37 / 39], [1350, 1]];
-
-function fitnessScore(end = todayISO()) {
-  const from = addDays(end, -6);
-  const L = S.lifts.filter(l => l.date >= from && l.date <= end);
-  const R = S.runs.filter(r => r.date >= from && r.date <= end && r.km > 0 && r.sec > 0);
-  const runs = R.filter(r => !isWalk(r)), walks = R.filter(isWalk);
-  const metMin = sum(R, r => { const v = speedOf(r.km, r.sec); return (isWalk(r) ? walkMET(v) : runMET(v)) * r.sec / 60; });
-  const aer = 40 * interp(AER_CURVE, metMin);
-  const days = new Set(L.map(l => l.date)).size, mins = sum(L, l => l.dur) / 60;
-  const str = 15 * Math.min(days / 2, 1) + 15 * Math.min(mins / 30, 1);
-  const run = runs.length ? 15 : 0;
-  let wk = 0, wDetail = '近 7 天沒有健走紀錄';
-  if (walks.length) {
-    const v = speedOf(sum(walks, w => w.km), sum(walks, w => w.sec));
-    const cads = walks.filter(w => w.cad), cad = cads.length ? sum(cads, w => w.cad * w.sec) / sum(cads, w => w.sec) : 0;
-    const brisk = v >= 5.6, avg = v >= 4.5 || cad >= 100;
-    wk = brisk ? 15 : avg ? 11 : 6;
-    wDetail = `平均時速 ${fmtN(v, 1)} km/h・${brisk ? '快走' : avg ? '一般速度' : '慢走'}`;
-  }
-  const total = Math.round(aer + str + run + wk);
-  const level = L.length + R.length === 0 ? '尚無紀錄' : total >= 85 ? '優秀' : total >= 70 ? '良好' : total >= 50 ? '普通' : '待加強';
-  return {
-    total, level, from, end,
-    parts: [
-      { name: '有氧量', pts: aer, max: 40, detail: `${fmtN(Math.round(metMin))} MET·分鐘（建議 ≥ 450）` },
-      { name: '肌力訓練', pts: str, max: 30, detail: `${days} 天・${Math.round(mins)} 分鐘（建議 ≥ 2 天、≥ 30 分）` },
-      { name: '跑步', pts: run, max: 15, detail: runs.length ? `${runs.length} 次・${fmtN(sum(runs, r => r.km), 1)} km` : '近 7 天沒有跑步' },
-      { name: '健走', pts: wk, max: 15, detail: wDetail },
-    ],
-  };
+/* Training points measure recorded activity, not medical fitness or risk reduction.
+   Recompute from saved records so imports, edits and deletions cannot create a second ledger. */
+function scoredRecords(records, end) {
+  const seen = new Set();
+  return records.filter(r => {
+    if (r.ex || !r.date || r.date > end || (r.id && seen.has(r.id))) return false;
+    if (r.id) seen.add(r.id);
+    return true;
+  });
 }
-
+const positive = v => Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0;
+function liftPoints(l) {
+  const sets = sum(l.items || [], it => (it.sets || []).filter(s => !s.warm && positive(s.r) > 0 && s.done !== false).length);
+  if (!sets) return 0;
+  return sets * 2 + positive(l.dur) / 300 + 5;
+}
+function runPoints(r) {
+  if (!(positive(r.km) && positive(r.sec))) return 0;
+  return isWalk(r) ? positive(r.km) * 3 + positive(r.sec) / 900 + 3 : positive(r.km) * 5 + positive(r.sec) / 600 + 5;
+}
+function fitnessScore(end = todayISO()) {
+  const L = scoredRecords(S.lifts, end).filter(l => liftPoints(l) > 0);
+  const R = scoredRecords(S.runs, end).filter(r => runPoints(r) > 0);
+  const runs = R.filter(r => !isWalk(r)), walks = R.filter(isWalk);
+  const days = new Set([...L, ...R].map(r => r.date)).size;
+  const parts = [
+    { name: '重訓累積', pts: sum(L, liftPoints), detail: `${L.length} 次・${sum(L, l => sum(l.items || [], it => (it.sets || []).filter(s => !s.warm && positive(s.r) > 0 && s.done !== false).length))} 有效組・${Math.round(sum(L, l => positive(l.dur)) / 60)} 分鐘` },
+    { name: '跑步累積', pts: sum(runs, runPoints), detail: `${runs.length} 次・${fmtN(sum(runs, r => positive(r.km)), 1)} km・${Math.round(sum(runs, r => positive(r.sec)) / 60)} 分鐘` },
+    { name: '健走累積', pts: sum(walks, runPoints), detail: `${walks.length} 次・${fmtN(sum(walks, r => positive(r.km)), 1)} km` },
+    { name: '持續訓練', pts: days * 2, detail: `${days} 個有運動的日子・同一天只加一次` },
+  ].map(p => ({ ...p, pts: Math.round(p.pts * 10) / 10 }));
+  const total = Math.round(sum(parts, p => p.pts) * 10) / 10;
+  const from = [...L, ...R].map(r => r.date).sort()[0] || end;
+  return { total, parts, days, from, end, level: !total ? '開始累積' : total >= 1000 ? '持續精進' : total >= 300 ? '穩定累積' : total >= 100 ? '突破 100' : '起步累積' };
+}
 function fitnessCardHTML() {
   const f = fitnessScore();
   return `<section class="card fitcard">
-    <div class="card-h"><h2 class="sec">體適能分數</h2><button type="button" class="link" data-act="fit-info">計算依據</button></div>
-    <div class="fit-top"><span class="fit-n">${tick(f.total)}</span><span class="fit-of">/ 100</span><span class="fit-lv${f.total >= 70 ? ' hi' : ''}">${f.level}</span></div>
-    <div class="fit-parts">${f.parts.map(p => `<div class="fp"><div class="fp-h"><span>${p.name}</span><span class="num">${fmtN(Math.round(p.pts))}<small> / ${p.max}</small></span></div><div class="fp-bar"><i style="width:${(p.pts / p.max * 100).toFixed(1)}%"></i></div><div class="fp-d">${esc(p.detail)}</div></div>`).join('')}</div>
-    <div class="small faint">依近 7 天紀錄計算（${fmtShort(f.from)}–${fmtShort(f.end)}）</div>
+    <div class="card-h"><h2 class="sec">體適能累積分數</h2><button type="button" class="link" data-act="score-open">查看明細 →</button></div>
+    <div class="fit-top"><span class="fit-n">${tick(f.total, 1)}</span><span class="fit-of">累積分</span><span class="fit-lv hi">${f.level}</span></div>
+    <p class="small muted">每次完成，持續累積。100 分是里程碑，分數沒有上限。</p>
+    <div class="fit-parts">${f.parts.map(p => `<div class="fp"><div class="fp-h"><span>${p.name}</span><span class="num">${fmtN(p.pts, 1)}<small> 分</small></span></div><div class="fp-d">${esc(p.detail)}</div></div>`).join('')}</div>
+    <div class="small faint">所有已完成紀錄・${fmtShort(f.from)} 起累積・投入積分，非醫療評量</div>
   </section>`;
 }
+function scoreChangeHTML(delta) {
+  return `<div class="dx"><h4>本次分數變動</h4><div class="score-value">${delta >= 0 ? '+' : ''}${fmtN(delta, 1)}<small> 分</small></div><p class="small muted">目前累積 ${fmtN(fitnessScore().total, 1)} 分・包含本日尚未領取的持續訓練分。編輯紀錄時顯示重算差額。</p></div>`;
+}
+function renderScore() {
+  const f = fitnessScore(), weekFrom = addDays(todayISO(), -6);
+  const history = [...scoredRecords(S.lifts, todayISO()).filter(l => liftPoints(l) > 0).map(d => ({ k: 'lift', d, pts: liftPoints(d) })), ...scoredRecords(S.runs, todayISO()).filter(r => runPoints(r) > 0).map(d => ({ k: 'run', d, pts: runPoints(d) }))].sort((a, b) => byDateDesc(a.d, b.d));
+  const recent = history.filter(x => x.d.date >= weekFrom);
+  const weekPts = sum(recent, x => x.pts) + new Set(recent.map(x => x.d.date)).size * 2;
+  const groups = Object.keys(GROUPS).map(g => ({ g, n: sum(scoredRecords(S.lifts, todayISO()), l => sum((l.items || []).filter(it => exById(it.eid).group === g), it => (it.sets || []).filter(s => !s.warm && positive(s.r) > 0 && s.done !== false).length)) }));
+  const max = Math.max(1, ...groups.map(g => g.n));
+  $('#v-score').innerHTML = `<div class="head"><button type="button" class="btn btn-soft" data-act="score-back">← 返回</button><h1 class="title">評分明細</h1></div>
+    ${fitnessCardHTML()}
+    <div class="grid2"><section class="card"><span class="small muted">近 7 天新增</span><div class="score-value">+${fmtN(weekPts, 1)}<small> 分</small></div></section><section class="card"><span class="small muted">累積運動天數</span><div class="score-value">${f.days}<small> 天</small></div></section></div>
+    <section class="card"><div class="card-h"><h2 class="sec">部位訓練分布</h2><span class="small faint">累積有效組</span></div><div class="view">${groups.map(g => `<div class="hbar"><span>${GROUPS[g.g]}</span><span class="tr"><i style="width:${g.n / max * 100}%"></i></span><span class="n">${g.n}</span></div>`).join('')}</div></section>
+    <section class="card"><div class="card-h"><h2 class="sec">每筆加分</h2><span class="small faint">最近 20 筆</span></div><p class="small muted">下列為各次活動分；持續訓練分另按不同日期加總。</p><div class="list">${history.slice(0, 20).map(x => `<button type="button" class="score-entry" data-act="open-entry" data-k="${x.k}" data-id="${esc(x.d.id)}"><span><b>${esc(x.k === 'lift' ? x.d.title || '重訓' : isWalk(x.d) ? '健走' : '跑步')}</b><small>${fmtDate(x.d.date)}</small></span><strong>+${fmtN(x.pts, 1)}</strong></button>`).join('') || '<div class="empty">完成第一次訓練後，這裡會列出加分明細。</div>'}</div></section>
+    <button type="button" class="btn btn-soft btn-block" data-act="fit-info">查看完整計分公式</button>`;
+  runTickers($('#v-score'));
+}
 
-const FIT_REFS = [
-  ['Bull FC, et al. World Health Organization 2020 guidelines on physical activity and sedentary behaviour. Br J Sports Med. 2020.', 'https://pubmed.ncbi.nlm.nih.gov/33239350/', 'PMID 33239350'],
-  ['Arem H, et al. Leisure time physical activity and mortality: a detailed pooled analysis of the dose-response relationship. JAMA Intern Med. 2015.', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4451435/', 'PMC4451435'],
-  ['Momma H, et al. Muscle-strengthening activities are associated with lower risk and mortality in major non-communicable diseases: a systematic review and meta-analysis. Br J Sports Med. 2022.', 'https://pubmed.ncbi.nlm.nih.gov/35228201/', 'PMID 35228201'],
-  ['Pedisic Z, et al. Is running associated with a lower risk of all-cause, cardiovascular and cancer mortality, and is the more the better? Br J Sports Med. 2020;54:898.', 'https://bjsm.bmj.com/content/54/15/898', 'BJSM 54(15):898'],
-  ['Stamatakis E, et al. Self-rated walking pace and all-cause, cardiovascular disease and cancer mortality. Br J Sports Med. 2018.', 'https://pubmed.ncbi.nlm.nih.gov/29858463/', 'PMID 29858463'],
-  ['Tudor-Locke C, et al. Walking cadence (steps/min) and intensity in 21–40 year olds: CADENCE-adults. Int J Behav Nutr Phys Act. 2019;16:8.', 'https://doi.org/10.1186/s12966-019-0769-6', 'doi:10.1186/s12966-019-0769-6'],
-  ['Herrmann SD, et al. 2024 Adult Compendium of Physical Activities: a third update of the energy costs of human activities. J Sport Health Sci. 2024.', 'https://pubmed.ncbi.nlm.nih.gov/38242596/', 'PMID 38242596'],
-];
 function openFitInfo(from) {
-  openSheet({
-    from, label: '體適能分數計算依據',
-    render: body => {
-      body.innerHTML = `<h2 class="stitle">體適能分數怎麼算</h2>
-        <p class="muted" style="margin:0">用近 7 天的紀錄計算，滿分 100，分成四個部分。每一部分的門檻都來自 PubMed 收錄的大型研究或 WHO 指引。</p>
-        <div class="dx"><h4>有氧量・40 分</h4><p class="small muted" style="margin:0">健走和跑步依速度換算 MET（2024 成人身體活動代謝當量表），乘上分鐘數加總。WHO 建議量約等於每週 450 MET·分鐘。Arem 等人匯總 66 萬人的研究：低於建議量死亡風險約降 20%，達 1–2 倍降 31%，2–3 倍降 37%，3–5 倍降 39% 後趨平。分數照這個比例給，每週 1,350 MET·分鐘（3 倍）得滿分。</p></div>
-        <div class="dx"><h4>肌力訓練・30 分</h4><p class="small muted" style="margin:0">WHO 建議每週至少 2 天肌力訓練，達到得 15 分。Momma 等人的統合分析發現每週 30–60 分鐘肌力訓練與最低死亡風險相關，每週 30 分鐘以上得另外 15 分；超過約 130–140 分鐘沒有看到額外好處。</p></div>
-        <div class="dx"><h4>跑步・15 分</h4><p class="small muted" style="margin:0">Pedisic 等人的統合分析：有跑步的人全因死亡風險比不跑的低 27%，而且頻率、時間、配速、總量都沒有劑量反應，一週一次也有效。所以近 7 天有跑步就給滿分。</p></div>
-        <div class="dx"><h4>健走・15 分</h4><p class="small muted" style="margin:0">Stamatakis 等人發現自評步速一般的人死亡風險比慢走低約 20%，快走低約 24%。平均時速 5.6 km/h 以上算快走（15 分），4.5–5.6 算一般（11 分），更慢算慢走（6 分）。步頻達每分鐘 100 步屬中等強度（Tudor-Locke 等人），至少算一般速度。</p></div>
-        <div class="dx"><h4>怎麼判斷是健走還是跑步</h4><p class="small muted" style="margin:0">人自然由走轉跑的速度大約是每秒 2 公尺，也就是時速 7.2 km/h，低於這個速度判為健走。有填步頻時，每分鐘少於 140 步且時速低於 8.5 判為健走，150 步以上判為跑步。判斷錯了可以在表單上手動切換。</p></div>
-        <p class="small faint" style="margin:0">這個分數衡量的是你記錄到的運動量和型態，換算自族群研究，不是醫學診斷，也不等於最大攝氧量或體能測驗結果。</p>
-        <ol class="refs small">${FIT_REFS.map(([t, u, id]) => `<li>${esc(t)} <a href="${u}" target="_blank" rel="noopener">${esc(id)}</a></li>`).join('')}</ol>`;
-    },
-  });
+  openSheet({ from, label: '累積分數計算方式', render: body => {
+    body.innerHTML = `<h2 class="stitle">每次完成，都有累積</h2>
+      <p class="muted">從所有已完成紀錄重新計算，沒有滿分上限，不因紀錄超過 7 天而扣回。100 分是里程碑。這套積分衡量訓練投入，不代表醫療體適能或健康風險。</p>
+      <div class="dx"><h4>重訓</h4><p>每個有效組 2 分 ＋ 每 5 分鐘 1 分 ＋ 每次完成 5 分。熱身組與未完成組不計分，至少要完成一個有效組。</p><p class="small muted">例：完成 10 組、訓練 30 分鐘＝20＋6＋5＝31 分。</p></div>
+      <div class="dx"><h4>跑步</h4><p>每公里 5 分 ＋ 每 10 分鐘 1 分 ＋ 每次完成 5 分。</p><p class="small muted">例：5 km、30 分鐘＝25＋3＋5＝33 分。</p></div>
+      <div class="dx"><h4>健走</h4><p>每公里 3 分 ＋ 每 15 分鐘 1 分 ＋ 每次完成 3 分。</p></div>
+      <div class="dx"><h4>持續訓練</h4><p>每個有完成運動的日期加 2 分。同一天有多次訓練只加一次，休息日不扣分。</p></div>
+      <div class="dx"><h4>資料與更正</h4><p>草稿、範例及未來日期不計分。同一紀錄 ID 只計一次；編輯、刪除紀錄後會重算。各分項取至小數一位後相加。</p></div>
+      <p class="small faint">不因速度更快、重量更大而額外加成；個人最佳和同齡比較獨立顯示。請依自身狀況安排休息，無須為了積分增加運動量。</p>`;
+  } });
 }
 /* ================= same-age percentile (PR) comparisons ================= */
 /* FRIEND registry, treadmill CPX VO2max (mL/kg/min), Kaminsky 2015 Mayo Clin Proc. Percentiles 5,10,25,50,75,90,95. */
@@ -2455,6 +2472,7 @@ function setPlace(name, lat, lon) {
   d.place = name; d.lat = lat; d.lon = lon;
   const inp = $('#rf-place'); if (inp) inp.value = name;
   const sug = $('#placeSug'); if (sug) sug.hidden = true;
+  Store.set('run-draft', d);
   refreshWeather();
 }
 let sugT = 0, sugList = [];
@@ -2497,7 +2515,7 @@ const Welcome = (() => {
       <ul class="wl-feats">
         <li style="--i:0"><span class="wl-ic">${IC.lift}</span><div><b>每一組都記得</b><span>上次的重量和次數自動帶入，打勾就開始休息計時</span></div></li>
         <li style="--i:1"><span class="wl-ic">${IC.run}</span><div><b>跑步自動判讀</b><span>配速、健走或跑步、當下天氣一次帶好</span></div></li>
-        <li style="--i:2"><span class="wl-ic">${IC.stats}</span><div><b>有根據的分數</b><span>依研究計算體適能分數，和同齡的人比一比</span></div></li>
+        <li style="--i:2"><span class="wl-ic">${IC.stats}</span><div><b>每次完成都有累積</b><span>查看累積積分、訓練明細與同齡表現比較</span></div></li>
       </ul>
       <div class="wl-actions"><button type="button" class="btn btn-lift btn-block wl-go" data-act="wl-next">開始設定</button><button type="button" class="link" data-act="wl-skip">先逛逛</button></div>`;
     return `
@@ -2563,7 +2581,7 @@ const UI = {
   tab: 'today', scroll: {}, liftSeen: false, xmenu: -1,
   logMonth: todayISO().slice(0, 7), logDay: null, logFilter: 'all',
   statsRange: '12w', statsLift: 'squat',
-  runDraft: null, picker: null,
+  runDraft: Store.get('run-draft', null), picker: null, runPage: 'home', liftGroup: null, groupSelection: [],
 };
 const segs = {};
 function mountSeg(id, opts) {
@@ -2783,13 +2801,16 @@ function renderLift(anim) {
     return;
   }
   sess.hidden = true; home.hidden = false;
+  if (UI.liftGroup && GROUPS[UI.liftGroup]) { renderLiftGroup(); return; }
   $('#liftHead').innerHTML = `<div><h1 class="title">重訓</h1></div>`;
   const mainLifts = ['squat', 'bench', 'deadlift', 'ohp'];
   const lifts = S.lifts.slice().sort(byDateDesc).slice(0, 6);
   const reusable = recentReusableLifts();
   $('#liftBody').innerHTML = `
-    <div class="tplmenu">${S.templates.map((t, i) => `<button type="button" class="tpl-pill glass gen" style="--d:${i};--c:${tplColor(t)}" data-act="tpl-open" data-i="${i}"><i>${i + 1}</i><span class="gl"><span class="gl-in"><span>${esc(t.name)}</span><span class="en">${esc(t.en)}</span></span></span></button>`).join('')}
-      <button type="button" class="tpl-pill glass gen" style="--d:5;--c:var(--ink-3)" data-act="start-blank"><i>+</i><span class="gl"><span class="gl-in"><span>空白訓練</span><span class="en">BLANK</span></span></span></button></div>
+    <section class="training-intro"><span class="eyebrow">STRENGTH TRAINING</span><h2>今天，練哪裡？</h2><p class="muted">依部位選動作，沿用上次重量，專注完成每一組。</p></section>
+    <div class="body-grid">${Object.entries(GROUPS).map(([g, name], i) => `<button type="button" class="body-tile" data-act="lift-group" data-g="${g}"><span class="body-number">0${i + 1}</span><b>${name}</b><span>${S.exercises.filter(e => e.group === g).length} 個動作 <span aria-hidden="true">↗</span></span></button>`).join('')}</div>
+    <button type="button" class="btn btn-soft btn-block" data-act="start-blank">＋ 自由組合訓練</button>
+    <details class="card"><summary>我的既有菜單 <span class="small muted">${S.templates.length} 份</span></summary><div class="tplmenu" style="margin-top:16px">${S.templates.map((t, i) => `<button type="button" class="tpl-pill glass" style="--c:${tplColor(t)}" data-act="tpl-open" data-i="${i}"><span>${esc(t.name)}</span></button>`).join('')}</div></details>
     <section class="card gen" style="--d:6" aria-label="快速加入過去重訓">
       <div class="card-h"><h2 class="sec">快速加入過去重訓</h2><span class="small faint">最近使用</span></div>
       ${reusable.length ? `<div class="reuse-list">${reusable.map(l => `<div class="reuse-item">
@@ -2809,7 +2830,7 @@ function renderLift(anim) {
     </section>`;
   if (anim) runTickers($('#liftBody'));
   // let the tab capsule finish sliding before the 3D box starts its heavy first frame
-  const on = () => Box.setActive(UI.tab === 'lift' && !S.active);
+  const on = () => Box.setActive(false);
   if (UI.deferBox) setTimeout(on, 480); else on();
 }
 $('#liftBody').addEventListener('pointerover', e => { const b = e.target.closest('.tpl-pill[data-i]'); if (b) Box.hoverExt(+b.dataset.i); });
@@ -2817,10 +2838,23 @@ $('#liftBody').addEventListener('pointerout', e => { const b = e.target.closest(
 
 function activeVol(a) { return sum(a.items, it => isTime(it.eid) ? 0 : sum(it.sets.filter(s => s.done && !s.warm), s => (num(s.w) || 0) * (num(s.r) || 0))); }
 function activeSets(a) { return sum(a.items, it => it.sets.filter(s => s.done && !s.warm).length); }
+function renderLiftGroup() {
+  const g = UI.liftGroup, exercises = S.exercises.filter(e => e.group === g);
+  const name = g === 'chest' ? '胸部' : GROUPS[g];
+  const selected = new Set(UI.groupSelection);
+  $('#liftHead').innerHTML = `<div class="page-heading"><button type="button" class="btn btn-soft" data-act="lift-home">← 重訓</button><h1 class="title">${name}訓練</h1><p class="muted">選擇今天的動作，開始後可調整重量與組數。</p></div>`;
+  $('#liftBody').innerHTML = `<div class="exercise-options">${exercises.map(e => {
+    const last = lastPerf(e.id);
+    return `<label class="exercise-option"><input type="checkbox" data-group-ex="${esc(e.id)}" ${selected.has(e.id) ? 'checked' : ''}><span><b>${esc(e.name)}</b><small>${last ? '上次：' + esc(fmtSets(last.item.sets, e.id)) : '首次訓練・預設 3 組，可隨時調整'}</small></span></label>`;
+  }).join('')}</div><div class="group-actions"><span class="small muted" id="groupCount">已選 ${selected.size} 個動作</span><button type="button" class="btn btn-lift btn-block" data-act="group-start" ${selected.size ? '' : 'disabled'}>開始${name}訓練</button></div>`;
+  Box.setActive(false);
+}
+
 function renderSession(anim) {
   const a = S.active, el = $('#liftSession');
   const editing = !!a.editId;
   el.innerHTML = `
+    <div class="session-heading"><button type="button" class="btn btn-soft" data-act="goto" data-v="today">← 儲存草稿並返回今天</button><span class="eyebrow">訓練進行中</span><p class="small muted">完成一組就打勾。只有儲存後才會計入紀錄及累積分數。</p></div>
     <section class="card sess-top">
       <div class="row"><span class="eyebrow">${editing ? '編輯紀錄' : '訓練中'}</span><span class="spacer"></span>
         <input type="date" class="inp" data-sf="date" value="${a.date}" aria-label="訓練日期" style="width:auto;height:36px;font-size:13px"></div>
@@ -2906,10 +2940,11 @@ function startSession({ tplId = null, eids = null, title = null } = {}) {
   if (UI.tab !== 'lift') go('lift'); else { renderLift(true); scrollTo(0, 0); }
 }
 function finishSession(btn) {
+  const scoreBefore = fitnessScore().total;
   const a = S.active; if (!a) return;
   const items = a.items.map(it => ({
     eid: it.eid,
-    sets: it.sets.map(s => {
+    sets: it.sets.filter(s => s.done).map(s => {
       const r = num(s.r) ?? (s.done ? num(s.pr) : null);
       const w = num(s.w) ?? (s.done ? num(s.pw) : null);
       return { w: w ?? 0, r, rpe: String(s.rpe || '').trim(), warm: !!s.warm };
@@ -2931,7 +2966,9 @@ function finishSession(btn) {
   Rest.stop(); Wake.off();
   commit();
   scrollTo(0, 0);
-  Box.fanIn();
+  UI.liftGroup = null;
+  history.replaceState(null, '', '#lift');
+  renderLift(false);
   openSheet({
     from: btn, label: '訓練完成',
     render: body => {
@@ -2939,6 +2976,7 @@ function finishSession(btn) {
         <h2 class="stitle">${editing ? '紀錄已更新' : '已儲存這次訓練'}</h2>
         <div class="kv"><div><b>${tick(Math.round(sess.dur / 60))}</b><span>分鐘</span></div><div><b>${tick(sessVol(sess))}</b><span>訓練量 kg</span></div><div><b>${tick(sessSets(sess))}</b><span>組數</span></div></div>
         ${prs.length ? `<div class="dx"><h4 style="display:flex;align-items:center;gap:6px;color:var(--warn)"><span style="width:18px;display:inline-grid">${IC.flame}</span>新的估算 1RM 紀錄</h4>${prs.map(p => `<div class="row" style="justify-content:space-between;padding:4px 0"><span>${esc(p.name)}</span><span class="num" style="font-size:18px">${fmtN(p.best, 1)} kg <span class="small faint">（之前 ${fmtN(p.prev, 1)}）</span></span></div>`).join('')}</div>` : ''}
+        ${scoreChangeHTML(fitnessScore().total - scoreBefore)}
         <div class="dlist">${items.map(it => `<div class="dx"><h4>${esc(exById(it.eid).name)}</h4><div class="small muted">${esc(fmtSets(it.sets, it.eid))}</div></div>`).join('')}</div>
         ${compareBlockHTML(liftCompareList(sess))}
         <button type="button" class="btn btn-lift btn-block" data-act="sheet-close">好</button>`;
@@ -2963,7 +3001,32 @@ function paceHTML(d) {
   const tf = document.getElementById('typeField'); if (tf) tf.hidden = mode === 'walk';
   return `<b>${spk ? fmtPace(spk) : `–'––"`}</b><span>/ km 配速</span><span class="spacer"></span><span>${spk ? `時速 ${fmtN(3600 / spk, 1)} km/h` : '填距離和時間，自動算配速'}</span>${modeRow}`;
 }
+function renderRunHome(anim) {
+  const runs = S.runs.slice().sort(byDateDesc), onlyRuns = runs.filter(r => !isWalk(r));
+  const week = weekStats(weekStart(todayISO())), month = todayISO().slice(0, 7);
+  const monthKm = sum(onlyRuns.filter(r => r.date.startsWith(month)), r => r.km);
+  const d = UI.runDraft, hasDraft = d && (d.km || d.h || d.m || d.s);
+  $('#v-run').innerHTML = `<div class="head"><h1 class="title">跑步</h1><span class="eyebrow">RUNNING</span></div>
+    <section class="run-hero"><span class="small">本週已完成</span><div class="run-distance">${fmtN(week.km, 1)}<small> km</small></div><p>${week.R.filter(r => !isWalk(r)).length} 次跑步・本月 ${fmtN(monthKm, 1)} km</p><button type="button" class="btn btn-run btn-block" data-act="run-new">${hasDraft ? '繼續未完成的記錄' : '＋ 記錄一次跑步'}</button><p class="small muted">跑完手動登記，或從設定同步 Strava 紀錄。</p></section>
+    <div class="grid2"><button type="button" class="card feature-link" data-act="run-history"><b>活動紀錄 ↗</b><span class="small muted">跑步與健走，共 ${runs.length} 次</span></button><button type="button" class="card feature-link" data-act="run-trends"><b>跑量趨勢 ↗</b><span class="small muted">12 週跑量與個人最佳</span></button></div>
+    <section class="view"><div class="card-h"><h2 class="sec">最近活動</h2></div><div class="list">${runs.length ? runs.slice(0, 3).map(d => entryHTML({ k: 'run', d })).join('') : '<div class="card empty">第一次跑步，從記錄距離與時間開始。</div>'}</div></section>`;
+  if (anim) runTickers($('#v-run'));
+}
+function renderRunHistory() {
+  const runs = S.runs.slice().sort(byDateDesc);
+  $('#v-run').innerHTML = `<div class="page-heading"><button type="button" class="btn btn-soft" data-act="run-home">← 跑步</button><h1 class="title">跑步與健走紀錄</h1></div><div class="list">${runs.map(d => entryHTML({ k: 'run', d })).join('') || '<div class="card empty">還沒有活動紀錄</div>'}</div>`;
+}
+function renderRunTrends() {
+  const weeks = [...Array(12)].map((_, i) => addDays(weekStart(todayISO()), (i - 11) * 7));
+  const onlyRuns = S.runs.filter(r => !isWalk(r));
+  const longest = onlyRuns.reduce((a, r) => !a || r.km > a.km ? r : a, null);
+  const fastest = onlyRuns.filter(r => r.km >= 3).reduce((a, r) => !a || r.sec / r.km < a.sec / a.km ? r : a, null);
+  $('#v-run').innerHTML = `<div class="page-heading"><button type="button" class="btn btn-soft" data-act="run-home">← 跑步</button><h1 class="title">跑量趨勢</h1></div><div class="grid2"><section class="card"><span class="small muted">最長距離</span><div class="score-value">${longest ? fmtN(longest.km, 1) : '—'}<small> km</small></div></section><section class="card"><span class="small muted">最快配速・3 km 以上</span><div class="score-value">${fastest ? fmtPace(fastest.sec / fastest.km) : '—'}<small> /km</small></div></section></div><section class="card"><h2 class="sec">近 12 週跑量</h2><div class="chartbox">${barChart({ vals: weeks.map(w => weekStats(w).km), labels: weeks.map(w => 'W' + isoWeek(w)), color: 'var(--run)', goal: S.profile.goalKm, fmt: v => fmtN(v, 1), unit: 'km', title: '每週跑量' })}</div></section>`;
+}
 function renderRun(anim) {
+  if (UI.runPage === 'home') return renderRunHome(anim);
+  if (UI.runPage === 'history') return renderRunHistory();
+  if (UI.runPage === 'trends') return renderRunTrends();
   const d = UI.runDraft || (UI.runDraft = newRunDraft());
   const ws = weekStart(todayISO());
   const weeks = [...Array(12)].map((_, i) => addDays(ws, (i - 11) * 7));
@@ -2976,7 +3039,7 @@ function renderRun(anim) {
   const shoes = [...new Set(S.runs.map(r => r.shoe).filter(Boolean))];
   const v = $('#v-run');
   v.innerHTML = `
-    <div class="head"><div><h1 class="title">${d.editId ? '編輯跑步紀錄' : '慢跑'}</h1></div></div>
+    <div class="page-heading"><button type="button" class="btn btn-soft" data-act="run-home">← 跑步總覽</button><h1 class="title">${d.editId ? '編輯跑步紀錄' : '記錄跑步'}</h1><p class="muted">先填距離與時間，其餘資料可選填。</p></div>
     <section class="card"><div class="formgrid">
       <div class="grid2">
         <div class="field"><label for="rf-km">距離（km）</label><input id="rf-km" class="inp big" inputmode="decimal" data-rf="km" value="${esc(d.km)}" placeholder="0.00" autocomplete="off"></div>
@@ -2987,10 +3050,11 @@ function renderRun(anim) {
         </div></div>
       </div>
       <div class="pace" id="paceBox">${paceHTML(d)}</div>
+      <div class="field"><label for="rf-date">日期</label><input id="rf-date" type="date" class="inp" data-rf="date" value="${esc(d.date)}"></div>
+      <details class="run-advanced"><summary>更多訓練資料 <span class="small muted">類型、心率、鞋款與地點</span></summary><div class="formgrid" style="margin-top:16px">
       <div class="field" id="typeField"><span class="flabel">類型</span><div id="segType"></div></div>
       <div class="field"><span class="flabel">跑起來的感受</span><div id="segFeel"></div></div>
       <div class="grid2">
-        <div class="field"><label for="rf-date">日期</label><input id="rf-date" type="date" class="inp" data-rf="date" value="${esc(d.date)}"></div>
         <div class="field"><label for="rf-hr">平均心率（bpm）</label><input id="rf-hr" class="inp" inputmode="numeric" data-rf="hr" value="${esc(d.hr ?? '')}" placeholder="例如 148"></div>
       </div>
       <div class="grid2">
@@ -3004,24 +3068,18 @@ function renderRun(anim) {
         <div class="wx" id="wxBox">${wxHTML(d)}</div>
       </div>
       <div class="field"><label for="rf-note">備註</label><textarea id="rf-note" class="ta" data-rf="note" placeholder="天氣、身體狀況、哪一段比較吃力">${esc(d.note)}</textarea></div>
-      <div class="row"><button type="button" class="btn btn-run" data-act="run-save">${IC.check} ${d.editId ? '更新這次跑步' : '儲存這次跑步'}</button>${d.editId ? '<button type="button" class="btn btn-ghost" data-act="run-cancel">取消編輯</button>' : ''}</div>
+      </div></details>
+      <div class="row"><button type="button" class="btn btn-run btn-block" data-act="run-save">${IC.check} ${d.editId ? '更新這次跑步' : '儲存這次跑步'}</button>${d.editId ? '<button type="button" class="btn btn-ghost" data-act="run-cancel">取消編輯</button>' : ''}</div>
     </div></section>
-    <div class="grid3">
-      <section class="card tile spot"><span class="tl">本月跑量</span><span class="tv">${tick(monthKm, 1)}<span class="unit">km</span></span></section>
-      <section class="card tile spot"><span class="tl">最長距離</span><span class="tv">${longest ? tick(longest.km, 1) : '–'}<span class="unit">km</span></span><span class="small faint">${longest ? fmtShort(longest.date) : '尚無紀錄'}</span></section>
-      <section class="card tile spot"><span class="tl">最快配速（3 km 以上）</span><span class="tv">${fastest ? fmtPace(fastest.sec / fastest.km) : '–'}<span class="unit">/km</span></span><span class="small faint">${fastest ? `${fmtN(fastest.km, 1)} km · ${fmtShort(fastest.date)}` : '尚無紀錄'}</span></section>
-    </div>
-    <section class="card spot"><div class="card-h"><h2 class="sec">每週跑量</h2><span class="small faint">近 12 週</span></div>
-      <div class="chartbox">${barChart({ vals: kms, labels: weeks.map(w => `W${isoWeek(w)}`), color: 'var(--run)', goal: S.profile.goalKm, fmt: v => fmtN(v, v < 10 && v % 1 ? 1 : 0), unit: 'km', title: '近 12 週每週跑量' })}</div></section>
-    <section class="view" style="gap:10px"><div class="card-h" style="margin:0"><h2 class="sec">跑步與健走</h2><span class="small faint">共 ${runs.length} 次</span></div>
-      <div class="list">${runs.length ? runs.slice(0, 12).map(d => entryHTML({ k: 'run', d })).join('') : '<div class="empty">還沒有跑步紀錄</div>'}</div></section>`;
+    `;
   $('#paceBox').innerHTML = paceHTML(d);
   if (d.lat != null && !d.weather && (d.wxState || 'idle') === 'idle') refreshWeather();
-  mountSeg('segType', { items: RUN_TYPES, value: d.type, label: '跑步類型', acc: 'var(--run-2)', cls: 'seg-sm', onChange: val => { d.type = val; } });
-  mountSeg('segFeel', { items: FEELS, value: d.feel, label: '感受', acc: 'var(--run-2)', cls: 'seg-sm', onChange: val => { d.feel = val; } });
+  mountSeg('segType', { items: RUN_TYPES, value: d.type, label: '跑步類型', acc: 'var(--run-2)', cls: 'seg-sm', onChange: val => { d.type = val; Store.set('run-draft', d); } });
+  mountSeg('segFeel', { items: FEELS, value: d.feel, label: '感受', acc: 'var(--run-2)', cls: 'seg-sm', onChange: val => { d.feel = val; Store.set('run-draft', d); } });
   if (anim) { stagger(v); runTickers(v); }
 }
 function saveRun() {
+  const scoreBefore = fitnessScore().total;
   const d = UI.runDraft; const km = num(d.km), sec = draftSec(d);
   if (!km || km <= 0) { toast('先填距離'); $('#rf-km')?.focus(); return; }
   if (!sec) { toast('先填時間'); return; }
@@ -3032,9 +3090,13 @@ function saveRun() {
     if (i >= 0) { r.ex = S.runs[i].ex; r.start = S.runs[i].start; S.runs[i] = r; } else S.runs.push(r);
   } else S.runs.push(r);
   UI.runDraft = newRunDraft();
+  Store.set('run-draft', null);
+  UI.runPage = 'home';
   commit();
-  if (!d.editId && r.type !== 'walk') setTimeout(() => openCompare('run', r.id, null), 250);
-  else toast(d.editId ? '已更新紀錄' : `已記錄健走 ${fmtN(r.km, 2)} km・配速 ${fmtPace(r.sec / r.km)}`);
+  navigate('run', true);
+  openSheet({ label: '活動已儲存', render: body => {
+    body.innerHTML = `<div class="eyebrow">${fmtDate(r.date)}</div><h2 class="stitle">${d.editId ? '紀錄已更新' : isWalk(r) ? '健走完成' : '跑步完成'}</h2><div class="kv"><div><b>${fmtN(r.km, 2)}</b><span>公里</span></div><div><b>${fmtDur(r.sec)}</b><span>時間</span></div><div><b>${fmtPace(r.sec / r.km)}</b><span>配速 /km</span></div></div>${scoreChangeHTML(fitnessScore().total - scoreBefore)}<button type="button" class="btn btn-run btn-block" data-act="sheet-close">回到跑步總覽</button>`;
+  } });
   scrollTo({ top: 0, behavior: RM.matches ? 'auto' : 'smooth' });
 }
 
@@ -3470,11 +3532,11 @@ const Wake = (() => {
 const TABS = [
   { value: 'today', label: '今天', en: 'TODAY', icon: IC.today },
   { value: 'lift', label: '重訓', en: 'LIFT', icon: IC.lift },
-  { value: 'run', label: '慢跑', en: 'RUN', icon: IC.run },
+  { value: 'run', label: '跑步', en: 'RUN', icon: IC.run },
   { value: 'log', label: '紀錄', en: 'LOG', icon: IC.log },
   { value: 'stats', label: '數據', en: 'STATS', icon: IC.stats },
 ];
-const RENDER = { today: renderToday, lift: renderLift, run: renderRun, log: renderLog, stats: renderStats };
+const RENDER = { today: renderToday, lift: renderLift, run: renderRun, log: renderLog, stats: renderStats, score: renderScore };
 
 $('[data-act="lens"]#lensBtn').innerHTML = IC.lens;
 $('[data-act="settings"]').innerHTML = IC.gear;
@@ -3494,30 +3556,45 @@ function renderTab(tab, anim) {
   RENDER[tab]?.(anim && first);
   if (anim) UI.seenTabs.add(tab);
   if (anim && !first && !RM.matches) $(`#v-${tab}`).animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
-  if (tab === 'lift' && anim && !S.active && !UI.liftSeen) {
-    UI.liftSeen = true;
-    const home = $('#liftHome');
-    if (!RM.matches) {
-      home.classList.add('gen-run');
-      setTimeout(() => home.classList.remove('gen-run'), 2600);
-      setTimeout(() => { if (UI.tab === 'lift' && !S.active) Box.intro(); }, 480);
-    }
-  }
   Lens.refresh();
 }
-function go(tab) {
+function go(tab, fromRoute = false) {
+  if (!fromRoute) {
+    if (tab === 'lift') UI.liftGroup = null;
+    if (tab === 'run') UI.runPage = UI.runDraft?.editId ? 'new' : 'home';
+    const route = tab === 'run' && UI.runDraft?.editId ? 'run/new' : tab;
+    if (location.hash !== '#' + route) history.pushState(null, '', '#' + route);
+  }
   if (!RENDER[tab]) return;
-  if (tab === UI.tab) { tabs.set(tab); scrollTo({ top: 0, behavior: RM.matches ? 'auto' : 'smooth' }); return; }
+  if (tab === UI.tab) { renderTab(tab, false); tabs.set(tab === 'score' ? 'today' : tab); scrollTo(0, 0); return; }
   UI.scroll[UI.tab] = scrollY;
   $$('.main > .view').forEach(v => { v.hidden = v.dataset.view !== tab; });
   UI.tab = tab;
-  tabs.set(tab);
+  tabs.set(tab === 'score' ? 'today' : tab);
   if (tab !== 'lift') Box.setActive(false);
   UI.deferBox = true;
   renderTab(tab, true);
   UI.deferBox = false;
   scrollTo(0, UI.scroll[tab] || 0);
 }
+function navigate(route, replace = false) {
+  const hash = '#' + route;
+  if (location.hash !== hash) history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+  applyRoute();
+}
+function applyRoute() {
+  const [tab, page] = location.hash.slice(1).split('/');
+  if (tab === 'run') UI.runPage = ['new', 'history', 'trends'].includes(page) ? page : 'home';
+  if (tab === 'lift') {
+    const next = GROUPS[page] ? page : null;
+    if (next !== UI.liftGroup) UI.groupSelection = [];
+    UI.liftGroup = next;
+  }
+  go(RENDER[tab] ? tab : 'today', true);
+}
+addEventListener('popstate', applyRoute);
+addEventListener('hashchange', applyRoute);
+
 function refresh() {
   renderTab(UI.tab, false);
   Box.texturesDirty();
@@ -3549,6 +3626,15 @@ const ACT = {
     S.lifts = S.lifts.filter(l => !l.ex); S.runs = S.runs.filter(r => !r.ex); S.exCleared = true;
     commit(); toast('範例資料已清除'); if (sheetCur) rerenderSheet();
   },
+  'lift-group': b => navigate('lift/' + b.dataset.g),
+  'lift-home': () => navigate('lift'),
+  'group-start': () => { if (UI.groupSelection.length) startSession({ eids: [...UI.groupSelection], title: GROUPS[UI.liftGroup] + '訓練' }); },
+  'run-new': () => navigate('run/new'),
+  'run-home': () => navigate('run'),
+  'run-history': () => navigate('run/history'),
+  'run-trends': () => navigate('run/trends'),
+  'score-open': () => { UI.scoreReturn = UI.tab === 'score' ? UI.scoreReturn : location.hash.slice(1) || 'today'; navigate('score'); },
+  'score-back': () => navigate(UI.scoreReturn || 'today'),
   'tpl-open': b => openTemplate(+b.dataset.i, b),
   'tpl-start': b => { const t = S.templates[+b.dataset.i]; closeSheet(true); startSession({ tplId: t.id }); },
   'tpl-rm': b => { const t = S.templates[+b.dataset.i]; t.ex = t.ex.filter(e => e !== b.dataset.eid); commit(); rerenderSheet(); },
@@ -3615,7 +3701,7 @@ const ACT = {
   'rest-adj': b => Rest.adj(+b.dataset.d),
   'rest-stop': () => Rest.stop(),
   'run-save': () => saveRun(),
-  'mode-flip': () => { const d = UI.runDraft; const cur = d.modeOverride || detectMode(num(d.km), draftSec(d), num(d.cad)); d.modeOverride = cur === 'walk' ? 'run' : 'walk'; $('#paceBox').innerHTML = paceHTML(d); },
+  'mode-flip': () => { const d = UI.runDraft; const cur = d.modeOverride || detectMode(num(d.km), draftSec(d), num(d.cad)); d.modeOverride = cur === 'walk' ? 'run' : 'walk'; $('#paceBox').innerHTML = paceHTML(d); Store.set('run-draft', d); },
   'fit-info': b => openFitInfo(b),
   'cmp-info': b => openCmpInfo(b),
   'entry-cmp': b => { const k = b.dataset.k, id = b.dataset.id; closeSheet(true); openCompare(k, id, null); },
@@ -3633,7 +3719,7 @@ const ACT = {
   'wl-skip': () => Welcome.close(false),
   'wl-done': () => Welcome.close(true),
   'wl-show': () => { closeSheet(true); Welcome.open(); },
-  'run-cancel': () => { UI.runDraft = newRunDraft(); renderRun(false); },
+  'run-cancel': () => { UI.runDraft = newRunDraft(); Store.set('run-draft', null); navigate('run'); },
   month: b => {
     const [y, m] = UI.logMonth.split('-').map(Number); const d = new Date(y, m - 1 + +b.dataset.d, 1);
     UI.logMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; UI.logDay = null; renderLog(false);
@@ -3651,7 +3737,8 @@ const ACT = {
       const r = S.runs.find(x => x.id === id); if (!r) return;
       UI.runDraft = { date: r.date, km: String(r.km), h: String(Math.floor(r.sec / 3600) || ''), m: String(Math.floor(r.sec % 3600 / 60)), s: String(Math.round(r.sec % 60)), type: r.type, feel: String(r.feel || '3'), hr: r.hr ?? '', cad: r.cad ?? '', shoe: r.shoe || '', place: r.place || '', lat: r.lat ?? null, lon: r.lon ?? null, time: r.time || '', weather: r.weather || null, wxState: r.weather ? 'ok' : 'idle', note: r.note || '', editId: r.id };
       { const auto = detectMode(r.km, r.sec, r.cad), m = r.type === 'walk' ? 'walk' : 'run'; UI.runDraft.modeOverride = auto && auto !== m ? m : null; if (r.type === 'walk') UI.runDraft.type = 'easy'; }
-      closeSheet(true); if (UI.tab === 'run') renderRun(true); else go('run');
+      Store.set('run-draft', UI.runDraft);
+      closeSheet(true); navigate('run/new');
       return;
     }
     if (S.active) { toast('先完成或捨棄進行中的訓練'); return; }
@@ -3701,6 +3788,7 @@ document.addEventListener('input', e => {
     UI.runDraft[t.dataset.rf] = t.value;
     if (['km', 'h', 'm', 's', 'cad'].includes(t.dataset.rf)) $('#paceBox').innerHTML = paceHTML(UI.runDraft);
     if (t.dataset.rf === 'place') placeTyped(t.value);
+    Store.set('run-draft', UI.runDraft);
   } else if (t.matches('[data-pick-q]') && UI.picker) {
     UI.picker.q = t.value; fillPicker();
   }
@@ -3721,7 +3809,7 @@ document.addEventListener('change', e => {
     fr.onerror = () => toast('讀不到這個檔案');
     fr.readAsText(t.files[0]);
   } else if ((t.dataset.rf === 'date' || t.dataset.rf === 'time') && UI.runDraft) {
-    UI.runDraft[t.dataset.rf] = t.value; if (UI.runDraft.lat != null) refreshWeather();
+    UI.runDraft[t.dataset.rf] = t.value; Store.set('run-draft', UI.runDraft); if (UI.runDraft.lat != null) refreshWeather();
   } else if (t.dataset.sf === 'date' && S.active) {
     S.active.date = t.value || todayISO(); commit({ quiet: true });
   }
@@ -3753,14 +3841,21 @@ new MutationObserver(() => document.documentElement.classList.toggle('locked', !
 // "next" key on the number pad moves through set inputs
 document.addEventListener('focusin', e => { if (e.target.matches?.('.set-row input')) e.target.setAttribute('enterkeyhint', 'next'); });
 
+document.addEventListener('change', e => {
+  const box = e.target.closest('[data-group-ex]');
+  if (!box) return;
+  UI.groupSelection = $$('[data-group-ex]:checked').map(el => el.dataset.groupEx);
+  $('#groupCount').textContent = `已選 ${UI.groupSelection.length} 個動作`;
+  $('[data-act="group-start"]').disabled = !UI.groupSelection.length;
+});
+
 /* ---------- boot ---------- */
 Strava.callback();
 renderToday(true);
 $('#brandName').textContent = `${firstName() || '我的'}訓練日誌`;
 Lens.init();
 if (!Store.get('welcomed', false)) Welcome.open();
-const deep = (location.hash || '').slice(1);
-if (RENDER[deep] && deep !== 'today') go(deep);
+applyRoute();
 if (S.active && !S.active.editId) Wake.on();
 </script>
 

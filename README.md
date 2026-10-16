@@ -27,3 +27,22 @@
 GitHub Pages 是公開靜態網站，無法安全保管 Strava Client Secret，因此須另外部署專案的 `strava-worker/` 至 Cloudflare Worker。請依 [Strava 後端部署說明](strava-worker/README.md) 設定 API App、Worker KV、機密環境變數。建立後，在健人設定頁填入 Worker 網址，再進行官方 OAuth 授權及活動同步。**在 Worker 尚未部署之前，不會自動完成 Strava 串聯。**
 
 訓練資料存在目前瀏覽器的 localStorage；請定期在設定中備份。
+
+## 訓練新版（2026-10-16）
+
+- 重訓主入口改為胸、背、肩、手臂、腹／核心、腿；可勾選動作再開始訓練。原有菜單保留在「我的既有菜單」，既有紀錄與進行中的訓練沿用 `kai-log-v1`，沒有清空或改寫資料格式。
+- 跑步拆成總覽 `#run`、記錄 `#run/new`、活動紀錄 `#run/history`、跑量趨勢 `#run/trends`。支援瀏覽器返回、前進與直接開啟子頁。未完成跑步表單另存在本機 `kai-ui-run-draft`，重新整理可繼續。
+- 體適能改為**投入積分**，從所有已完成紀錄累加，不限 100 分，也不因超過 7 天而扣回；不是醫療體適能量表或疾病風險推估。詳情位於 `#score`，顯示分項、近 7 天新增、部位組數、逐筆活動分與公式。
+
+| 分項 | 公式 |
+| --- | --- |
+| 重訓 | 有效組數 × 2 ＋ 分鐘 ÷ 5 ＋ 完成活動 5 分；至少一個有效組 |
+| 跑步 | 公里 × 5 ＋ 分鐘 ÷ 10 ＋ 完成活動 5 分 |
+| 健走 | 公里 × 3 ＋ 分鐘 ÷ 15 ＋ 完成活動 3 分 |
+| 持續訓練 | 每個有完成活動的不同日期 2 分 |
+
+每個分項取至小數一位後相加。同一類型紀錄的相同 ID 只計一次，範例、草稿與未來日期不計。修改、刪除後由紀錄重算。舊版已存組數視為已完成；新訓練只有勾選的組數會儲存。
+
+### 驗證
+
+需要 Node.js、Playwright 和 Chromium。可先執行 `npm install --no-save --package-lock=false playwright`，再用 `node --test tests/*.cjs`。預設 Chromium 為 `/usr/bin/chromium`，其他安裝位置可用 `CHROMIUM_PATH` 指定。測試自行啟動暫時的本機 HTTP 服務；不使用真實帳號資料。
