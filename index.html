@@ -1067,87 +1067,27 @@ function normalize(st) {
   for (const e of f.exercises) if (!o.exercises.some(x => x.id === e.id)) o.exercises.push(e);
   o.templates = Array.isArray(st.templates) && st.templates.length ? st.templates.slice(0, 5) : f.templates;
   while (o.templates.length < 5) o.templates.push(f.templates[o.templates.length]);
-  o.lifts = Array.isArray(st.lifts) ? st.lifts.filter(l => l && l.date && Array.isArray(l.items)) : [];
-  o.runs = Array.isArray(st.runs) ? st.runs.filter(r => r && r.date) : [];
+  // Earlier versions automatically created demo workouts. They are not real user data.
+  // Preserve every genuine local record, but never show demo sessions as progress.
+  o.lifts = Array.isArray(st.lifts) ? st.lifts.filter(l => l && l.ex !== true && l.date && Array.isArray(l.items)) : [];
+  o.runs = Array.isArray(st.runs) ? st.runs.filter(r => r && r.ex !== true && r.date) : [];
   o.active = st.active && Array.isArray(st.active.items) ? st.active : null;
   return o;
 }
 
-/* deterministic example data: the last five weeks, clearly flagged as examples */
-function seedExamples(st) {
-  let s = 20261014;
-  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const pick = (a, b) => a + (b - a) * rnd();
-  const round = (v, step) => Math.round(v / step) * step;
-  const today = todayISO();
-  const ws0 = addDays(weekStart(today), -35);
-  const W = {
-    bench: [72.5, 2.5, 2], ohp: [42.5, 2.5, 3], 'incline-db': [24, 2, 2], lateral: [10, 1, 4], pushdown: [27.5, 2.5, 3],
-    deadlift: [130, 5, 2], pullup: [0, 0, 9], row: [65, 2.5, 2], facepull: [22.5, 2.5, 4], curl: [32.5, 2.5, 3],
-    squat: [100, 5, 2], rdl: [85, 5, 3], legpress: [170, 10, 2], legcurl: [40, 2.5, 3], calf: [70, 5, 3],
-    pulldown: [57.5, 2.5, 3], hammer: [14, 2, 4], plank: [0, 0, 9],
-  };
-  const MAIN = new Set(['bench', 'ohp', 'deadlift', 'squat', 'row']);
-  const mkSets = (eid, w) => {
-    const [b, inc, every] = W[eid] || [20, 0, 9];
-    const wt = round(b + inc * Math.floor(w / every), eid === 'incline-db' || eid === 'hammer' || eid === 'lateral' ? 1 : 2.5);
-    const sets = [];
-    if (eid === 'plank') { for (let i = 0; i < 3; i++) sets.push({ w: 0, r: round(pick(45, 70), 5), rpe: '', warm: false }); return sets; }
-    if (eid === 'pullup') { [9, 8, 7].forEach((r, i) => sets.push({ w: w >= 3 ? 5 : 0, r: r - (w >= 3 ? 2 : 0) + (i === 0 && rnd() > .6 ? 1 : 0), rpe: i === 2 ? '8.5' : '', warm: false })); return sets; }
-    if (MAIN.has(eid)) {
-      sets.push({ w: round(wt * .6, 2.5), r: 8, rpe: '', warm: true });
-      for (let i = 0; i < 3; i++) sets.push({ w: wt, r: i === 2 && rnd() > .55 ? 4 : 5, rpe: i === 2 ? String(round(pick(7.5, 9), .5)) : '', warm: false });
-    } else {
-      const reps = eid === 'lateral' || eid === 'calf' ? 12 : 10;
-      for (let i = 0; i < 3; i++) sets.push({ w: wt, r: reps - (i === 2 && rnd() > .5 ? 2 : 0), rpe: '', warm: false });
-    }
-    return sets;
-  };
-  const lift = (date, tplId, w) => {
-    const tpl = st.templates.find(t => t.id === tplId);
-    const d = dateOf(date); d.setHours(19, Math.floor(pick(10, 45)), 0, 0);
-    st.lifts.push({
-      id: uid(), ex: true, date, start: d.getTime(), dur: Math.round(pick(52, 74)) * 60, tpl: tplId,
-      title: `${tpl.name} ${tpl.en}`, items: tpl.ex.map(eid => ({ eid, sets: mkSets(eid, w) })), note: '',
-    });
-  };
-  const run = (date, type, w) => {
-    let km, pace, hr, place;
-    if (type === 'easy') { km = pick(5.4, 7.2); pace = pick(368, 392); hr = pick(142, 151); place = '河濱自行車道'; }
-    else if (type === 'tempo') { km = pick(6, 7); pace = pick(312, 328); hr = pick(161, 168); place = '學校操場'; }
-    else if (type === 'interval') { km = pick(5, 6); pace = pick(318, 334); hr = pick(158, 166); place = '學校操場'; }
-    else if (type === 'walk') { km = pick(3.6, 5.2); pace = pick(640, 720); hr = pick(104, 118); place = '社區公園'; }
-    else { km = 10 + w * .8 + pick(0, .6); pace = pick(376, 396); hr = pick(147, 155); place = '河濱自行車道'; }
-    km = Math.round(km * 100) / 100;
-    const d = dateOf(date); d.setHours(type === 'long' ? 7 : 20, 10, 0, 0);
-    st.runs.push({
-      id: uid(), ex: true, date, start: d.getTime(), km, sec: Math.round(km * pace), type, hr: Math.round(hr), cad: Math.round(type === 'walk' ? pick(108, 118) : pick(168, 178)),
-      feel: String(type === 'tempo' ? 3 : Math.round(pick(3, 5))), shoe: type === 'tempo' || type === 'interval' ? '輕量競速鞋' : '日常訓練鞋', place, note: '',
-    });
-  };
-  for (let w = 0; w < 6; w++) {
-    const ws = addDays(ws0, w * 7);
-    const plan = [
-      [0, () => lift(addDays(ws, 0), 'push', w)],
-      [1, () => run(addDays(ws, 1), 'easy', w)],
-      [2, () => (w === 1 || w === 3) ? run(addDays(ws, 2), w === 3 ? 'interval' : 'tempo', w) : run(addDays(ws, 2), 'walk', w)],
-      [6, () => w !== 3 && run(addDays(ws, 6), 'walk', w)],
-      [3, () => lift(addDays(ws, 3), 'pull', w)],
-      [4, () => w !== 2 && lift(addDays(ws, 4), 'legs', w)],
-      [5, () => w !== 2 && run(addDays(ws, 5), 'long', w)],
-      [6, () => w === 3 && lift(addDays(ws, 6), 'upper', w)],
-    ];
-    for (const [off, fn] of plan) { if (addDays(ws, off) < today) fn(); }
-  }
-}
-
+/* New installations start with an empty history. Restore only local, real workouts.
+   A one-time cleanup removes demo workouts generated by older versions. */
 let S = (() => {
   const raw = Store.load();
-  if (raw) return normalize(raw);
-  const st = freshState();
-  seedExamples(st);
-  Store.save(st);
-  return st;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const restored = normalize(raw);
+    if ((Array.isArray(raw.lifts) && raw.lifts.some(l => l?.ex === true)) ||
+        (Array.isArray(raw.runs) && raw.runs.some(r => r?.ex === true))) {
+      Store.save(restored);
+    }
+    return restored;
+  }
+  return freshState();
 })();
 
 /* ---------- change bus ---------- */
@@ -2196,7 +2136,7 @@ function fitnessScore(end = todayISO()) {
     wDetail = `平均時速 ${fmtN(v, 1)} km/h・${brisk ? '快走' : avg ? '一般速度' : '慢走'}`;
   }
   const total = Math.round(aer + str + run + wk);
-  const level = total >= 85 ? '優秀' : total >= 70 ? '良好' : total >= 50 ? '普通' : '待加強';
+  const level = L.length + R.length === 0 ? '尚無紀錄' : total >= 85 ? '優秀' : total >= 70 ? '良好' : total >= 50 ? '普通' : '待加強';
   return {
     total, level, from, end,
     parts: [
@@ -2763,7 +2703,7 @@ function renderLift(anim) {
       <button type="button" class="tpl-pill glass gen" style="--d:5;--c:var(--ink-3)" data-act="start-blank"><i>+</i><span class="gl"><span class="gl-in"><span>空白訓練</span><span class="en">BLANK</span></span></span></button></div>
     <section class="card spot gen" style="--d:6">
       <div class="card-h"><h2 class="sec">主項最佳（估算 1RM）</h2><span class="small faint">e1RM = 重量 ×（1 + 次數 ÷ 30）</span></div>
-      <div class="prs">${mainLifts.map(id => { const p = prOf(id); return `<div class="p"><span>${exById(id).name}</span><b>${p.e1 ? tick(Math.round(p.e1 * 10) / 10, 1) : '–'}<span class="unit">kg</span></b><span class="small faint">${p.date ? '最重 ' + fmtW(p.w) + ' kg · ' + fmtShort(p.date) : '尚無紀錄'}</span></div>`; }).join('')}</div>
+      <div class="prs">${mainLifts.map(id => { const p = prOf(id); return `<div class="p"><span>${exById(id).name}</span><b>${p.e1 ? tick(Math.round(p.e1 * 10) / 10, 1) : '0'}<span class="unit">kg</span></b><span class="small faint">${p.date ? '最重 ' + fmtW(p.w) + ' kg · ' + fmtShort(p.date) : '尚無紀錄'}</span></div>`; }).join('')}</div>
     </section>
     <section class="view gen" style="gap:10px;--d:7">
       <div class="card-h" style="margin:0"><h2 class="sec">最近的重訓</h2><button type="button" class="link" data-act="goto" data-v="log">全部紀錄</button></div>
