@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群清晰版 v3 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群解剖修正 v4 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -2388,6 +2388,35 @@ function validPectoralLabel(zoneId, x, y, depth, patchDistance) {
   const inferiorFold = 1.245 + 0.055 * t * t * (3 - 2 * t);
   return y >= inferiorFold && y <= 1.525 && depth >= 0.010 && patchDistance <= 1.1;
 }
+
+// Bound every training muscle by its own baked patch envelope. Ellipsoid
+// proximity alone can assign the lats to thighs and glutes to the abdomen.
+function muscleZoneEnvelopes(patches, zoneCount) {
+  const bounds = Array.from({ length: zoneCount }, () => null);
+  for (const p of patches) {
+    const id = p.o.z;
+    if (!id) continue;
+    if (!bounds[id]) bounds[id] = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+    const b = bounds[id];
+    for (let k = 0; k < 3; k++) {
+      b[k] = Math.min(b[k], p.bb[k]);
+      b[k + 3] = Math.max(b[k + 3], p.bb[k + 3]);
+    }
+  }
+  return bounds;
+}
+function plausibleMuscleVertex(id, x, y, z, distance, bounds) {
+  if (id === 0) return distance <= 0.7;
+  const b = bounds[id];
+  if (!b || !Number.isFinite(distance) || distance > 0.68) return false;
+  const margin = id >= 17 ? 0.024 : id >= 11 && id <= 13 ? 0.023 : 0.020;
+  if (x < b[0] - margin || x > b[3] + margin
+      || y < b[1] - margin || y > b[4] + margin
+      || z < b[2] - margin || z > b[5] + margin) return false;
+  if (id <= 3 && !validPectoralLabel(id, x, y, z, distance)) return false;
+  return true;
+}
+
 const CHEST_ZONE_VIS = Object.freeze({
   'chest-upper': { rgb: [0.99, 0.56, 0.48], alpha: 0.40, swatch: '#DC796D' },
   'chest-mid':   { rgb: [0.67, 0.13, 0.20], alpha: 0.34, swatch: '#A63A53' },
@@ -2758,6 +2787,7 @@ function buildBodyMesh(src) {
     const e = [0, 1, 2].map(k => Math.hypot(r[0] * ax[0][k], r[1] * ax[1][k], r[2] * ax[2][k]));
     out.push({ c, r, ir: r.map(v => 1 / v), f: [...ax[0], ...ax[1], ...ax[2]], ax, bb: [c[0] - e[0], c[1] - e[1], c[2] - e[2], c[0] + e[0], c[1] + e[1], c[2] + e[2]], o: OW[arr[i + 15]] }); } return out; };
   const LAB = unpack(src.anat.lab), TEN = unpack(src.anat.ten);
+  const ANATOMICAL_ENVELOPES = muscleZoneEnvelopes(LAB, ZONES.length + 1);
   // coarse grid of patches so each vertex only tests the few that can reach it
   const GO = [-0.8, -0.15, -0.5], GS = 0.06, GX = 27, GY = 36, GZ = 17, EMPTY = [];
   const cellOf = (x, y, z) => { const i = Math.floor((x - GO[0]) / GS), j = Math.floor((y - GO[1]) / GS), k = Math.floor((z - GO[2]) / GS); return i < 0 || j < 0 || k < 0 || i >= GX || j >= GY || k >= GZ ? -1 : i + GX * (j + GY * k); };
@@ -2811,13 +2841,13 @@ function buildBodyMesh(src) {
     }
     const cand = GL.get(cellOf(x, y, z)) || EMPTY;
     let f1 = 1e9, L1 = null;
-    for (const L of cand) { if (!near(L, x, y, z, 0.07)) continue; const f = ev(L, x, y, z); if (f < f1) { f1 = f; L1 = L; } }
+    for (const L of cand) { if (!near(L, x, y, z, 0.07)) continue; const f = ev(L, x, y, z); if (f < f1 && plausibleMuscleVertex(L.o.z, x, y, z, f, ANATOMICAL_ENVELOPES)) { f1 = f; L1 = L; } }
     if (!L1) { fib[v * 3] = 1; uu[v] = z * 0.8 + y * 0.6; mv[v] = 0.37; continue; }
     const o = L1.o;
     let f2 = 1e9, o2 = null;
     for (const L of cand) { if (L.o.mid === o.mid || !near(L, x, y, z, 0.07)) continue; const f = ev(L, x, y, z); if (f < f2) { f2 = f; o2 = L.o; } }
     const gap = f2 - f1;
-    zone[v] = validPectoralLabel(o.z, x, y, z, f1) ? o.z : 0;
+    zone[v] = o.z;
     seam[v] = (1 - ss(0, 0.26, gap)) * Math.min(o.gr, o2 ? o2.gr : 1) * (o2 && o2.fam === o.fam ? 0.35 : 1);
     swell[v] = ss(0.05, 0.7, gap) * o.sw;
     ten[v] = o.tn;
@@ -2855,7 +2885,11 @@ function buildBodyMesh(src) {
       if (!best) continue;
       const donor = [...cnt].find(([, o2]) => o2 === best)[0];
       for (const v of comp) {
-        own[v] = best; ownO[v] = ownO[donor]; zone[v] = zone[donor]; mv[v] = mv[donor]; uu[v] = uu[donor];
+        own[v] = best; ownO[v] = ownO[donor];
+        const px = pos[v * 3], py = pos[v * 3 + 1], pz = pos[v * 3 + 2];
+        // The island repair may not repaint a forbidden anatomy envelope.
+        zone[v] = plausibleMuscleVertex(zone[donor], px, py, pz, 0, ANATOMICAL_ENVELOPES) ? zone[donor] : 0;
+        mv[v] = mv[donor]; uu[v] = uu[donor];
         const o = ownO[v], d = o.to ? norm(sub(o.to, [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]])) : [fib[donor * 3], fib[donor * 3 + 1], fib[donor * 3 + 2]];
         fib[v * 3] = d[0]; fib[v * 3 + 1] = d[1]; fib[v * 3 + 2] = d[2];
       }
@@ -4061,6 +4095,8 @@ void main(){
     try {
       const code = `'use strict';const ZONES=${JSON.stringify(ZONES)};const ZONE=${JSON.stringify(ZONE)};
 ${validPectoralLabel.toString()}
+${muscleZoneEnvelopes.toString()}
+${plausibleMuscleVertex.toString()}
 ${subdivideCC.toString()}
 ${vertexNormals.toString()}
 ${quadsToTris.toString()}
