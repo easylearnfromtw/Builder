@@ -73,7 +73,9 @@ test('pectoral abdomen spill guard excludes epigastric vertices', () => {
   assert.equal(validPectoralLabel(3, 0.04, 1.12, 0.10, 0.2), false);
   assert.equal(validPectoralLabel(3, 0.06, 1.23, 0.10, 0.2), false);
   assert.equal(validPectoralLabel(3, 0.18, 1.26, 0.10, 0.2), false);
-  assert.equal(validPectoralLabel(3, 0.08, 1.305, 0.10, 0.2), true);
+  assert.equal(validPectoralLabel(3, 0.08, 1.305, 0.10, 0.2), false, 'medial inferior chest must not descend into upper abdomen');
+  assert.equal(validPectoralLabel(3, 0.08, 1.365, 0.10, 0.2), true, 'medial pectoral fold retains chest tissue');
+  assert.equal(validPectoralLabel(3, 0.20, 1.31, 0.10, 0.2), true, 'inferolateral chest fold is slightly lower');
   assert.equal(validPectoralLabel(2, 0.10, 1.365, 0.12, 0.2), true);
   assert.equal(validPectoralLabel(1, 0.08, 1.435, 0.12, 0.2), true);
   assert.equal(validPectoralLabel(3, 0.10, 1.30, 0.10, 2.0), false);
