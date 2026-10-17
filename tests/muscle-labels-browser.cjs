@@ -63,7 +63,7 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     const captured = await page.evaluate(() => Body.debug.captureImage());
     assert.ok(captured?.startsWith('data:image/png;base64,'), '3D capture unavailable');
     const png = Buffer.from(captured.split(',')[1], 'base64');
-    writeFileSync('/tmp/jianren-chest-v3.png', png);
+    writeFileSync('/tmp/jianren-chest-v4.png', png);
     const anatomy = await page.evaluate(() => ({
       lowerBounds: Body.debug.zone('chest-lower', 1)?.lo,
       swatches: [...document.querySelectorAll('#bLabels .bs-region')]
@@ -127,6 +127,9 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
       await page.waitForFunction(g => Body.mode.group === g && Object.keys(Body.labelAnchors).some(id => ZONE[id]?.g === g),
         group, { timeout: 12000 });
       await page.waitForTimeout(1500); // let the camera settle at the correct anatomical view
+      const rendered = await page.evaluate(() => Body.debug.captureImage());
+      assert.ok(rendered?.startsWith('data:image/png;base64,'), group + ': framebuffer snapshot unavailable');
+      writeFileSync('/tmp/jianren-' + group + '-v4.png', Buffer.from(rendered.split(',')[1], 'base64'));
       const points = await page.evaluate(() => Object.entries(Body.labelAnchors).map(([id, p]) => ({
         id, group: ZONE[id]?.g, expected: ZONE[id]?.i,
         actual: Body.debug.pickAt(p.x, p.y),
