@@ -38,6 +38,12 @@ jobs:
         if: always()
         shell: bash
         run: |
+          # Do not create commits on successful checks: CI self-commits and
+          # simultaneous Pages builds used to race with the next push.
+          if [[ "$(cat /tmp/jianren-browser-exit.txt 2>/dev/null)" == "0" ]]; then
+            echo 'WebGL check passed; no diagnostic commit necessary.'
+            exit 0
+          fi
           mkdir -p diagnostics
           {
             echo "Commit: $GITHUB_SHA"
