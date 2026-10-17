@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群解剖修正 v4 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群解剖修正 v4.1 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -2893,6 +2893,37 @@ function buildBodyMesh(src) {
         const o = ownO[v], d = o.to ? norm(sub(o.to, [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]])) : [fib[donor * 3], fib[donor * 3 + 1], fib[donor * 3 + 2]];
         fib[v * 3] = d[0]; fib[v * 3 + 1] = d[1]; fib[v * 3 + 2] = d[2];
       }
+    }
+  }
+  // Remove tiny jagged protrusions along region seams WITHOUT expanding a
+  // training muscle beyond its validated anatomy envelope. The subdivided
+  // triangles share neighbours; a strongly inconsistent corner is repainted
+  // to its surrounding zone. Do not flood-fill exposed skin with made-up
+  // muscle anatomy, and preserve the existing fibre/owner metadata.
+  {
+    const next = new Uint8Array(nv);
+    for (let pass = 0; pass < 2; pass++) {
+      next.set(zone);
+      let changed = 0;
+      for (let v = 0; v < nv; v++) {
+        const oldZone = zone[v];
+        if (!oldZone || eyeV[v] || hm[v] > 0) continue;
+        const begin = start[v], end = start[v + 1], total = end - begin;
+        if (total < 5) continue;
+        const counts = new Uint16Array(ZONES.length + 1);
+        for (let k = begin; k < end; k++) counts[zone[nbr[k]]]++;
+        let best = oldZone, votes = counts[oldZone];
+        for (let z = 0; z < counts.length; z++) {
+          if (counts[z] > votes) { votes = counts[z]; best = z; }
+        }
+        if (best === oldZone || votes / total < 0.75) continue;
+        const x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2];
+        if (best && !plausibleMuscleVertex(best, x, y, z, 0, ANATOMICAL_ENVELOPES)) continue;
+        next[v] = best;
+        changed++;
+      }
+      zone.set(next);
+      if (!changed) break;
     }
   }
   // across-fibre coordinate solved on the skin itself (least squares on its gradient), so striations keep an even
