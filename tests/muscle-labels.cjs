@@ -64,3 +64,18 @@ test('marker is biased toward the interior of a curved muscle patch', () => {
   assert.ok(onZone(img, p, 9, 1));
   assert.ok(p.y < 19 || p.x < 25 || p.x >= 70, 'must avoid the notch instead of pointing at its empty centroid');
 });
+
+const pectoralSource = html.match(/function validPectoralLabel\([\s\S]*?\n}\n(?=const CHEST_ZONE_VIS)/)?.[0];
+assert.ok(pectoralSource, 'pectoral abdomen spill guard must be present in mesh generator');
+const validPectoralLabel = vm.runInNewContext('(' + pectoralSource + ')');
+
+test('pectoral abdomen spill guard excludes epigastric vertices', () => {
+  assert.equal(validPectoralLabel(3, 0.04, 1.12, 0.10, 0.2), false);
+  assert.equal(validPectoralLabel(3, 0.06, 1.23, 0.10, 0.2), false);
+  assert.equal(validPectoralLabel(3, 0.18, 1.26, 0.10, 0.2), false);
+  assert.equal(validPectoralLabel(3, 0.08, 1.305, 0.10, 0.2), true);
+  assert.equal(validPectoralLabel(2, 0.10, 1.365, 0.12, 0.2), true);
+  assert.equal(validPectoralLabel(1, 0.08, 1.435, 0.12, 0.2), true);
+  assert.equal(validPectoralLabel(3, 0.10, 1.30, 0.10, 2.0), false);
+  assert.equal(validPectoralLabel(9, 0.10, 1.12, 0.10, 2.0), true, 'back zones must not be cropped by pectoral correction');
+});
