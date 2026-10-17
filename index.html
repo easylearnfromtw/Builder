@@ -4932,6 +4932,20 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
   }
   function readPick(px, py) {
     if (!ok || !bodyVAO || !VP) return 0;
+    // In detailed anatomy mode, touch picking and visible annotation pins must
+    // use the SAME rendered zone-ID raster. The former half-size pick target
+    // could return zone 0 at a callout pin from the independent downsampled
+    // label target (most noticeably around thin hamstring silhouettes).
+    // CPU lookup also avoids extra WebGL draw/readback on each pointer move.
+    if (mode.group && labelRT && labelStamp && !demo) {
+      const x = Math.floor(px / cssW * labelRT.w);
+      const y = Math.floor((1 - py / cssH) * labelRT.h);
+      if (x >= 0 && y >= 0 && x < labelRT.w && y < labelRT.h) {
+        const i = (y * labelRT.w + x) * 4;
+        return labelRT.pixels[i + 3] >= 128 ? labelRT.pixels[i] : 0;
+      }
+      return 0;
+    }
     const t = pickTarget();
     const x = Math.floor(px / cssW * t.w), y = Math.floor((1 - py / cssH) * t.h);
     if (x < 0 || y < 0 || x >= t.w || y >= t.h) return 0;
