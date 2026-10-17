@@ -73,7 +73,7 @@ GitHub Pages 是公開靜態網站，無法安全保管 Strava Client Secret，�
 
 ### 驗證
 
-需要 Node.js、Playwright 和 Chromium。可先執行 `npm install --no-save --package-lock=false playwright`，再用 `node --test tests/*.cjs`（共 12 項）。預設 Chromium 為 `/usr/bin/chromium`，其他安裝位置可用 `CHROMIUM_PATH` 指定。測試自行啟動暫時的本機 HTTP 服務；不使用真實帳號資料。
+需要 Node.js、Playwright 和 Chromium。可先執行 `npm install --no-save --package-lock=false playwright`，再用 `node --test tests/*.cjs`（共 17 項，其中 5 項是 GPU 靜態檢查）。預設 Chromium 為 `/usr/bin/chromium`，其他安裝位置可用 `CHROMIUM_PATH` 指定。瀏覽器測試自行啟動暫時的本機 HTTP 服務；不使用真實帳號資料。若環境禁止本機 HTTP，可以先執行 `node --test tests/gpu-budget.cjs` 驗證 GPU 預算與 JS 語法。
 
 ## 3D GPU 效能調整（2026-10-17）
 

@@ -16,7 +16,7 @@ test('existing users get six body-part entry points without losing templates or 
  await p.locator('[data-act="lift-group"][data-g="chest"]').click();
  await p.waitForURL('**/#lift/chest');
  assert.ok(await p.getByRole('heading',{name:'胸部訓練',exact:true}).isVisible());
- assert.equal(await p.locator('[data-group-ex]').count(),4);
+ assert.equal(await p.locator('[data-group-ex]').count(),10);
  await p.locator('[data-group-ex="bench"]').check();
  await p.locator('[data-act="group-start"]').click();
  assert.equal(await p.evaluate(()=>S.active.items[0].eid),'bench');
