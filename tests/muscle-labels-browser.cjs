@@ -73,6 +73,31 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     assert.equal(anatomy.swatches.length, 3, 'three separate chest annotation keys must appear');
     assert.equal(new Set(anatomy.swatches.map(x => x.swatch)).size, 3,
       'upper/middle/lower chest labels must have distinct colors');
+    // Sample the actual GPU canvas at each (previously GPU-verified) zone
+    // anchor. Testing chip CSS alone cannot detect indistinguishable muscle
+    // shading under translucent clothing or lighting.
+    const png = await page.locator('#bCanvas').screenshot();
+    const rgb = await page.evaluate(async ({ png, anchors }) => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + png;
+      await image.decode();
+      const sampling = document.createElement('canvas');
+      sampling.width = image.naturalWidth; sampling.height = image.naturalHeight;
+      const ctx = sampling.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0);
+      const pix = ctx.getImageData(0, 0, sampling.width, sampling.height).data;
+      const c = document.querySelector('#bCanvas');
+      const kx = sampling.width / c.clientWidth, ky = sampling.height / c.clientHeight;
+      return Object.fromEntries(Object.entries(anchors).map(([key, p]) => {
+        const x = Math.max(0, Math.min(sampling.width - 1, Math.floor(p.x * kx)));
+        const y = Math.max(0, Math.min(sampling.height - 1, Math.floor(p.y * ky)));
+        return [key, Array.from(pix.slice(4 * (y * sampling.width + x), 4 * (y * sampling.width + x) + 3))];
+      }));
+    }, { png: png.toString('base64'), anchors: await page.evaluate(() => Body.labelAnchors) });
+    console.log('Actual GPU-rendered pectoral zone RGB:', JSON.stringify(rgb));
+    const samples = ['chest-upper', 'chest-mid', 'chest-lower'].map(id => rgb[id]);
+    assert.ok(samples.every(rgb => Array.isArray(rgb) && rgb.length === 3),
+      'all three chest zones must show a visible sampled pixel');
     console.log('Pectoral color key and inferior bounds:', JSON.stringify(anatomy));
     assert.ok(result.length > 0, 'at least one visible chest muscle must have a label');
     for (const p of result) {
