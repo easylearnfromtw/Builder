@@ -5291,7 +5291,26 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     get mode() { return { ...mode }; }, get yaw() { return cam.yaw.x; },
     get labelAnchors() { return Object.fromEntries(labelSeen); },
     hoverGroup(g) { hoverG = g || null; wake(); },
-    debug: { col(o) { Object.assign(col, o); wake(); }, cam(t, d, yaw, pitch = 0.05) { cam.tx.x = cam.tx.t = t[0]; cam.ty.x = cam.ty.t = t[1]; cam.tz.x = cam.tz.t = t[2]; cam.dist.x = cam.dist.t = d; cam.yaw.x = cam.yaw.t = yaw; cam.pitch.x = cam.pitch.t = pitch; cam.sx.x = cam.sx.t = 0; for (const k of Object.keys(cam)) cam[k].v = 0; wake(); }, dbg(v) { dbg = v; wake(); }, yaw(a) { cam.yaw.x = cam.yaw.t = a; cam.yaw.v = 0; wake(); }, pickAt: (x, y) => readPick(x, y), project: p => project(p), zone: (id, s) => zoneInfo(id, s), snap() { for (const k of Object.keys(cam)) { cam[k].x = cam[k].t; cam[k].v = 0; } revealT = -1; clock += 5; wake(); }, state() { return { ok, active, inView, running, revealT, clock, cw: cv.width, ch: cv.height, maxEdge: MODEL_2K_EDGE, pixelBudget: maxCanvasPixels, lowPowerGPU, demo: !!demo }; }, dimensions(w, h, dpr) { return renderDimensions(w, h, dpr); }, clip(q) {
+    debug: {
+      captureImage() {
+        // DOM screenshots of WebGL with preserveDrawingBuffer=false can show a
+        // blank figure, even while ID picking works. Draw and read the actual
+        // resolved framebuffer in one synchronous JS turn for regression tests.
+        if (!ok || !mesh || !gl || !cv.width || !cv.height) return null;
+        draw();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.finish();
+        const width = cv.width, height = cv.height, row = width * 4;
+        const bytes = new Uint8Array(row * height);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+        const out = new Uint8ClampedArray(bytes.length);
+        for (let y = 0; y < height; y++) out.set(bytes.subarray(y * row, (y + 1) * row), (height - 1 - y) * row);
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').putImageData(new ImageData(out, width, height), 0, 0);
+        return canvas.toDataURL('image/png');
+      },
+      col(o) { Object.assign(col, o); wake(); }, cam(t, d, yaw, pitch = 0.05) { cam.tx.x = cam.tx.t = t[0]; cam.ty.x = cam.ty.t = t[1]; cam.tz.x = cam.tz.t = t[2]; cam.dist.x = cam.dist.t = d; cam.yaw.x = cam.yaw.t = yaw; cam.pitch.x = cam.pitch.t = pitch; cam.sx.x = cam.sx.t = 0; for (const k of Object.keys(cam)) cam[k].v = 0; wake(); }, dbg(v) { dbg = v; wake(); }, yaw(a) { cam.yaw.x = cam.yaw.t = a; cam.yaw.v = 0; wake(); }, pickAt: (x, y) => readPick(x, y), project: p => project(p), zone: (id, s) => zoneInfo(id, s), snap() { for (const k of Object.keys(cam)) { cam[k].x = cam[k].t; cam[k].v = 0; } revealT = -1; clock += 5; wake(); }, state() { return { ok, active, inView, running, revealT, clock, cw: cv.width, ch: cv.height, maxEdge: MODEL_2K_EDGE, pixelBudget: maxCanvasPixels, lowPowerGPU, demo: !!demo }; }, dimensions(w, h, dpr) { return renderDimensions(w, h, dpr); }, clip(q) {
       // how far anything passes into the body over one rep: floor, static equipment, the bar or dumbbells in the hands
       const hyp = a => Math.hypot(a[0], a[1], a[2]);
       Body.demo({ prim: [], sec: [], ...q }); if (!demo) return null;
