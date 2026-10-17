@@ -21,8 +21,12 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 65000 }
       args: ['--no-sandbox', '--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader'],
     });
     const page = await browser.newPage({
-      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3,
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1,
+      reducedMotion: 'reduce',
     });
+    // SwiftShader is CPU-backed in CI. Force the app's low-memory fallback so
+    // a 2K render does not starve the event loop during an interaction test.
+    await page.addInitScript(() => Object.defineProperty(navigator, 'deviceMemory', { configurable: true, value: 2 }));
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('http://127.0.0.1:' + server.address().port + '/');
