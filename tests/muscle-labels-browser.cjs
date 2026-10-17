@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 
 // Visual regression: scan the *real* WebGL2 muscle model and verify that each
 // displayed callout pin hits its own zone in the independent pointer pick pass.
-test('GPU muscle labels point to their actual visible zones', { timeout: 65000 }, async t => {
+test('GPU muscle labels point to their actual visible zones', { timeout: 140000 }, async t => {
   const html = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
   const server = createServer((req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -62,6 +62,36 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 65000 }
       assert.ok(p.onScreen, p.id + ' anchor outside WebGL stage');
       assert.equal(p.actual, p.expected, p.id + ' label points at another muscle');
     }
+    // The first regression covered only chest. Validate every other muscle
+    // group from the real rotating WebGL model, not synthetic pixels.
+    const totals = { chest: result.length };
+    for (const group of ['back', 'shoulders', 'arms', 'core', 'legs']) {
+      await page.evaluate(g => navigate('lift/' + g), group);
+      await page.waitForFunction(g => Body.mode.group === g && Object.keys(Body.labelAnchors).some(id => ZONE[id]?.g === g),
+        group, { timeout: 12000 });
+      await page.waitForTimeout(1500); // let the camera settle at the correct anatomical view
+      const points = await page.evaluate(() => Object.entries(Body.labelAnchors).map(([id, p]) => ({
+        id, group: ZONE[id]?.g, expected: ZONE[id]?.i,
+        actual: Body.debug.pickAt(p.x, p.y),
+        inView: p.x >= 0 && p.y >= 0 && p.x < document.querySelector('#bStage').clientWidth
+          && p.y < document.querySelector('#bStage').clientHeight,
+        y: p.y,
+      })));
+      const visible = points.filter(p => p.group === group);
+      totals[group] = visible.length;
+      assert.ok(visible.length > 0, group + ' has no visible muscle anchors');
+      for (const p of visible) {
+        assert.ok(p.inView, group + ': ' + p.id + ' outside stage');
+        assert.equal(p.actual, p.expected, group + ': ' + p.id + ' pin does not match GPU muscle');
+      }
+      // Anatomical landmark ordering in the projected upright model.
+      const Y = id => visible.find(p => p.id === id)?.y;
+      if (group === 'back' && Y('back-traps') != null && Y('back-lower') != null)
+        assert.ok(Y('back-traps') < Y('back-lower'), 'Trapezius must be above lumbar musculature');
+      if (group === 'legs' && Y('leg-quads') != null && Y('leg-calves') != null)
+        assert.ok(Y('leg-quads') < Y('leg-calves'), 'Quadriceps must be above calves');
+    }
+    console.log('Real-WebGL visible-muscle counts by group:', JSON.stringify(totals));
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();
