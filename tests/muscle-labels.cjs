@@ -65,7 +65,7 @@ test('marker is biased toward the interior of a curved muscle patch', () => {
   assert.ok(p.y < 19 || p.x < 25 || p.x >= 70, 'must avoid the notch instead of pointing at its empty centroid');
 });
 
-const pectoralSource = html.match(/function validPectoralLabel\([\s\S]*?\n}\n(?=const CHEST_ZONE_VIS)/)?.[0];
+const pectoralSource = html.match(/function validPectoralLabel\([\s\S]*?\n}\n/)?.[0];
 assert.ok(pectoralSource, 'pectoral abdomen spill guard must be present in mesh generator');
 const validPectoralLabel = vm.runInNewContext('(' + pectoralSource + ')');
 
@@ -78,4 +78,35 @@ test('pectoral abdomen spill guard excludes epigastric vertices', () => {
   assert.equal(validPectoralLabel(1, 0.08, 1.435, 0.12, 0.2), true);
   assert.equal(validPectoralLabel(3, 0.10, 1.30, 0.10, 2.0), false);
   assert.equal(validPectoralLabel(9, 0.10, 1.12, 0.10, 2.0), true, 'back zones must not be cropped by pectoral correction');
+});
+
+const envelopesSource = html.match(/function muscleZoneEnvelopes\([\s\S]*?\n}\n/)?.[0];
+const plausibleSource = html.match(/function plausibleMuscleVertex\([\s\S]*?\n}\n/)?.[0];
+assert.ok(envelopesSource && plausibleSource, 'anatomical patch-envelope guard required');
+const envelopes = vm.runInNewContext('(' + envelopesSource + ')');
+const candidate = vm.runInNewContext('(' + plausibleSource + ')', { validPectoralLabel });
+
+test('long back muscles cannot extrapolate into thigh or buttock', () => {
+  const p = [{ o: { z: 9 }, bb: [-.20, 1.09, -.15, .20, 1.36, .05] },
+    { o: { z: 10 }, bb: [-.08, .96, -.17, .08, 1.20, .01] }];
+  const b = envelopes(p, 22);
+  assert.equal(candidate(9, .12, 1.25, -.06, .2, b), true);
+  assert.equal(candidate(9, .12, .78, -.06, .2, b), false);
+  assert.equal(candidate(9, .12, 1.03, -.06, .2, b), false);
+  assert.equal(candidate(10, 0, .80, -.06, .2, b), false);
+  assert.equal(candidate(9, .12, 1.25, .3, .2, b), false);
+});
+
+test('leg muscles remain confined to their source anatomy', () => {
+  const p = [{ o: { z: 17 }, bb: [-.20, .56, .01, .20, 1.00, .17] },
+    { o: { z: 19 }, bb: [-.21, .82, -.14, .21, 1.05, .08] },
+    { o: { z: 21 }, bb: [-.25, .18, -.15, .25, .51, .13] }];
+  const b = envelopes(p, 22);
+  assert.equal(candidate(17, .10, .8, .11, .1, b), true);
+  assert.equal(candidate(17, .10, .4, .11, .1, b), false);
+  assert.equal(candidate(19, .12, .96, -.07, .1, b), true);
+  assert.equal(candidate(19, .12, 1.20, -.07, .1, b), false);
+  assert.equal(candidate(21, .15, .40, -.05, .1, b), true);
+  assert.equal(candidate(21, .15, .7, -.05, .1, b), false);
+  assert.equal(candidate(21, .15, .40, -.05, 2, b), false);
 });
