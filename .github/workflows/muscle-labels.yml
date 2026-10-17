@@ -9,7 +9,7 @@ on:
       - .github/workflows/muscle-labels.yml
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   labels:
     runs-on: ubuntu-latest
@@ -26,6 +26,34 @@ jobs:
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
       - name: Test actual rendered muscle labels in WebGL
-        env:
-          CHROMIUM_PATH: ''
-        run: node --test tests/muscle-labels-browser.cjs
+        shell: bash
+        run: |
+          set +e
+          export CHROMIUM_PATH="$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")"
+          node --test tests/muscle-labels-browser.cjs > /tmp/jianren-browser-results.log 2>&1
+          echo "$?" > /tmp/jianren-browser-exit.txt
+          cat /tmp/jianren-browser-results.log
+          exit 0
+      - name: Save diagnostic details in repository
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Run: $GITHUB_RUN_ID"
+            echo "Browser test exit: $(cat /tmp/jianren-browser-exit.txt 2>/dev/null || echo unavailable)"
+            echo "=================="
+            tail -150 /tmp/jianren-browser-results.log 2>/dev/null || echo "No browser log"
+          } > diagnostics/muscle-labels-ci.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/muscle-labels-ci.txt
+          git commit -m "test(jianren): record WebGL label diagnostic outcome [skip ci]" || exit 0
+          git pull --rebase origin main
+          git push origin HEAD:main
+      - name: Fail on browser regression
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/jianren-browser-exit.txt ]] && [[ "$(cat /tmp/jianren-browser-exit.txt)" != "0" ]]; then exit 1; fi
