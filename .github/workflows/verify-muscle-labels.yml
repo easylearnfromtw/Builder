@@ -1,0 +1,31 @@
+name: Verify muscle labels
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - tests/muscle-labels.cjs
+      - tests/muscle-labels-browser.cjs
+      - .github/workflows/verify-muscle-labels.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  muscle-labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify static muscle label algorithm
+        run: node --test tests/muscle-labels.cjs
+      - name: Install Playwright and headless Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test WebGL2 muscle anchors in Chromium
+        run: |
+          export CHROMIUM_PATH="$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")"
+          node --test tests/muscle-labels-browser.cjs
