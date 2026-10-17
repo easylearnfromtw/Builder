@@ -76,7 +76,18 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     // Sample the actual GPU canvas at each (previously GPU-verified) zone
     // anchor. Testing chip CSS alone cannot detect indistinguishable muscle
     // shading under translucent clothing or lighting.
+    await page.evaluate(() => {
+      // Element screenshots include siblings stacked above the canvas.
+      // Hide callouts so sampling returns real muscle pixels, not the colored
+      // 10px DOM annotation circles that previously matched CSS swatches.
+      document.querySelector('#bLabels').style.visibility = 'hidden';
+      document.querySelector('#bLines').style.visibility = 'hidden';
+    });
     const png = await page.locator('#bCanvas').screenshot();
+    await page.evaluate(() => {
+      document.querySelector('#bLabels').style.visibility = '';
+      document.querySelector('#bLines').style.visibility = '';
+    });
     const rgb = await page.evaluate(async ({ png, anchors }) => {
       const image = new Image();
       image.src = 'data:image/png;base64,' + png;
@@ -98,6 +109,16 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     const samples = ['chest-upper', 'chest-mid', 'chest-lower'].map(id => rgb[id]);
     assert.ok(samples.every(rgb => Array.isArray(rgb) && rgb.length === 3),
       'all three chest zones must show a visible sampled pixel');
+    const palette = anatomy.swatches.map(x => x.swatch.toUpperCase());
+    const sampledHex = samples.map(x => '#' + x.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase());
+    assert.ok(sampledHex.some(x => !palette.includes(x)),
+      'sampled muscle must not be only the DOM label-dot palette: ' + JSON.stringify(sampledHex));
+    const distance = (a, b) => Math.hypot(...a.map((x, i) => x - b[i]));
+    const pairDistances = [distance(samples[0], samples[1]), distance(samples[0], samples[2]),
+      distance(samples[1], samples[2])];
+    console.log('Chest muscle actual per-region color distances:', JSON.stringify(pairDistances));
+    assert.ok(pairDistances.every(x => x >= 12),
+      'upper, middle and lower muscle patches are visually indistinguishable: ' + JSON.stringify(pairDistances));
     console.log('Pectoral color key and inferior bounds:', JSON.stringify(anatomy));
     assert.ok(result.length > 0, 'at least one visible chest muscle must have a label');
     for (const p of result) {
