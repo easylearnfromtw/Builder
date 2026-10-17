@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群解剖修正 v4.1 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌輪廓修正 v4.2 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -2384,8 +2384,12 @@ const ZONE = Object.fromEntries(ZONES.map((z, i) => [z.id, { ...z, i: i + 1 }]))
 // because its ellipsoid happens to be the closest anatomical patch.
 function validPectoralLabel(zoneId, x, y, depth, patchDistance) {
   if (zoneId < 1 || zoneId > 3) return true;
-  const t = Math.max(0, Math.min(1, (Math.abs(x) - 0.10) / 0.115));
-  const inferiorFold = 1.245 + 0.055 * t * t * (3 - 2 * t);
+  // Pectoralis major runs from the sternum toward the anterior axillary
+  // fold. The medial edge is HIGHER, not lower, than the inferolateral fold.
+  // A previous inverted slope generated an isolated "tail" into the abdomen.
+  const t = Math.max(0, Math.min(1, (Math.abs(x) - 0.045) / 0.16));
+  const eased = t * t * (3 - 2 * t);
+  const inferiorFold = 1.355 - 0.055 * eased;
   return y >= inferiorFold && y <= 1.525 && depth >= 0.010 && patchDistance <= 1.1;
 }
 
@@ -3742,17 +3746,33 @@ uniform float uDbg;
 uniform vec4 uZA[${NZ}]; uniform vec4 uZB[${NZ}];
 uniform vec3 uEye; uniform vec3 uBg; uniform vec3 uKey; uniform vec3 uRim; uniform vec3 uGlow; uniform vec3 uLineC;
 uniform vec3 uM0; uniform vec3 uM1; uniform vec3 uM2; uniform vec3 uT0; uniform vec3 uT1; uniform vec3 uH0; uniform vec3 uH1;
-uniform float uBand; uniform float uReveal; uniform float uDark; uniform float uPick; uniform float uLine;
+uniform float uBand; uniform float uReveal; uniform float uDark; uniform float uPick; uniform float uLine; uniform float uChestMask;
 uniform vec4 uLk; uniform vec3 uFill; uniform vec3 uFillD; uniform vec3 uSheen;
 out vec4 o;
 void main(){
   if (vW.y > uReveal) discard;
   int za = vPair.x, zb = vPair.y;
-  if (uPick > 0.5) { o = vec4(float(vEdge >= 0.0 ? za : zb) / 255.0, vR.x >= 0.0 ? 1.0 : 0.0, 0.0, 1.0); return; }
+  // A fragment-space, antialiased inferior pectoral contour prevents jagged
+  // red triangle fringes from crossing the anatomical thorax/abdomen border.
+  float chestX = smoothstep(0.045, 0.205, abs(vR.x));
+  float pectoralFloor = 1.355 - 0.055 * chestX;
+  float chestAA = max(fwidth(vR.y) * 1.6, 0.003);
+  float chestKeep = smoothstep(pectoralFloor - chestAA, pectoralFloor + chestAA, vR.y);
+  int activeZone = vEdge >= 0.0 ? za : zb;
+  bool isPectoral = activeZone >= 1 && activeZone <= 3;
+  if (uPick > 0.5) {
+    if (uChestMask > 0.5 && isPectoral && chestKeep < 0.5) activeZone = 0;
+    o = vec4(float(activeZone) / 255.0, vR.x >= 0.0 ? 1.0 : 0.0, 0.0, 1.0); return;
+  }
   float aa = max(fwidth(vEdge), 1e-5);
   float t = clamp(0.5 + vEdge / (1.6 * aa), 0.0, 1.0);
   vec4 tint = mix(uZA[zb], uZA[za], t), fx = mix(uZB[zb], uZB[za], t);
   float line = (za != zb ? 1.0 - smoothstep(0.48 * aa, 3.0 * aa, abs(vEdge)) : 0.0) * fx.z;
+  if (uChestMask > 0.5 && ((za >= 1 && za <= 3) || (zb >= 1 && zb <= 3))) {
+    tint.a *= chestKeep;
+    fx.x = max(fx.x, 1.0 - chestKeep);
+    line *= chestKeep;
+  }
   vec3 n0 = normalize(vN); if (!gl_FrontFacing) n0 = -n0;
   vec3 v = normalize(uEye - vW);
   vec3 L = normalize(uKey);
@@ -4920,6 +4940,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     gl.useProgram(p);
     bodyUniforms(p);
     gl.uniform1f(p.u('uPick'), pickPass ? 1 : 0);
+    gl.uniform1f(p.u('uChestMask'), mode.group === 'chest' && !demo ? 1 : 0);
     if (!pickPass) {
       const A = new Float32Array(NZ * 4), B = new Float32Array(NZ * 4);
       zs.forEach((z, i) => { A.set([z.c[0], z.c[1], z.c[2], z.a], i * 4); B.set([z.dim, z.glow, z.line, z.desat], i * 4); });
@@ -4933,7 +4954,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
       gl.uniform4fv(p.u('uLk'), col.lk); gl.uniform3fv(p.u('uFill'), col.fill); gl.uniform3fv(p.u('uSheen'), col.sheen);
       const fy = cam.yaw.x + col.fy; gl.uniform3fv(p.u('uFillD'), V3.norm([Math.sin(fy), .1, Math.cos(fy)]));
       gl.uniform1f(p.u('uDark'), col.dark);
-      gl.uniform1f(p.u('uLine'), mode.group === 'chest' ? 1 : .85);
+      gl.uniform1f(p.u('uLine'), mode.group === 'chest' ? .42 : .85);
       gl.uniform1f(p.u('uDbg'), dbg);
       const bt = clock - bandT;
       gl.uniform1f(p.u('uBand'), bt < 1.8 ? lerp(-.4, 2.6, bt / 1.8) : -9);
