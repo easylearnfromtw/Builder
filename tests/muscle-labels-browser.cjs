@@ -113,6 +113,9 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     console.log('Chest muscle actual per-region color distances:', JSON.stringify(pairDistances));
     assert.ok(pairDistances.every(x => x >= 12),
       'upper, middle and lower muscle patches are visually indistinguishable: ' + JSON.stringify(pairDistances));
+    assert.ok(samples[2][1] >= samples[1][1] + 14 && samples[2][1] > samples[2][2] + 10,
+      'lower-chest GPU pixel is still muddy/dark rather than orange relative to mid-chest: '
+        + JSON.stringify({ mid: samples[1], lower: samples[2] }));
     console.log('Pectoral color key and inferior bounds:', JSON.stringify(anatomy));
     assert.ok(result.length > 0, 'at least one visible chest muscle must have a label');
     for (const p of result) {
