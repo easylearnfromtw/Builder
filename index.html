@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌輪廓修正 v4.2 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌清晰版 v4.3 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -2424,7 +2424,7 @@ function plausibleMuscleVertex(id, x, y, z, distance, bounds) {
 const CHEST_ZONE_VIS = Object.freeze({
   'chest-upper': { rgb: [0.99, 0.56, 0.48], alpha: 0.40, swatch: '#DC796D' },
   'chest-mid':   { rgb: [0.67, 0.13, 0.20], alpha: 0.34, swatch: '#A63A53' },
-  'chest-lower': { rgb: [0.94, 0.41, 0.22], alpha: 0.47, swatch: '#C56737' },
+  'chest-lower': { rgb: [1.00, 0.64, 0.34], alpha: 0.74, swatch: '#D98747' },
 });
 
 // Pick label dots from the *visible GPU zone-ID mask*, not the 3D average
@@ -3881,7 +3881,12 @@ void main(){
   c += uSheen * pow(max(dot(n, H), 0.0), 9.0) * mus01 * (1.0 - vSeam * 0.7) * (vTen > 1.5 ? 0.0 : 1.0);
   float g = dot(c, vec3(0.299, 0.587, 0.114));
   c = mix(c, vec3(g) * vec3(1.03, 1.0, 0.96) + 0.07, fx.w * 0.72);
-  c = mix(c, tint.rgb * (0.45 + 0.75 * lum), tint.a);
+  // Lower sternocostal fibres face away from the key light. Without a
+  // dedicated minimum fill their orange zone appears muddy brown against the
+  // dark red middle zone, especially on mobile screens.
+  float chestShade = uChestMask > 0.5 && (za == 3 || zb == 3)
+    ? (0.72 + 0.44 * lum) : (0.45 + 0.75 * lum);
+  c = mix(c, tint.rgb * chestShade, tint.a);
   c += uGlow * fx.y * (0.1 + 0.42 * fr);
   c = mix(c, uLineC, line * uLine);
   c = mix(c, uBg, fx.x * 0.6);
