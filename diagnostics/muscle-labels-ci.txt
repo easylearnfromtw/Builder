@@ -1,0 +1,20 @@
+Commit: feb5cd1353ea0181243a4500a2d1022e3b0cdb95
+Run: 39002269043
+Browser test exit: 0
+==================
+TAP version 13
+# Subtest: GPU muscle labels point to their actual visible zones
+ok 1 - GPU muscle labels point to their actual visible zones
+  ---
+  duration_ms: 7280.728168
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7500.698036
