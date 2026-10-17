@@ -1,21 +1,38 @@
-Commit: 4ffa962a345782e939042b07cc7d4f175b532aa3
-Run: 39003378651
-Browser test exit: 0
+Commit: 26d8d32697b807eb52ad3dcd91d7091601ec748b
+Run: 39003870836
+Browser test exit: 1
 ==================
 TAP version 13
-# Real-WebGL visible muscle IDs by group: {"chest":["chest-upper","chest-mid","chest-lower"],"back":["back-traps","back-mid","back-lats","back-lower"],"shoulders":["delt-front","delt-side","delt-rear"],"arms":["arm-biceps","arm-forearm"],"core":["core-lower","core-obliques"],"legs":["leg-quads","leg-adductors","leg-glutes","leg-hams","leg-calves"]}
+# Actual GPU-rendered pectoral zone RGB: {"chest-upper":[220,121,109],"chest-mid":[166,58,83],"chest-lower":[197,103,55]}
+# Pectoral color key and inferior bounds: {"lowerBounds":[0.006879263091832399,1.245842456817627,0.010895585641264915],"swatches":[{"id":"chest-upper","swatch":"\#DC796D","dot":"rgb(220, 121, 109)"},{"id":"chest-mid","swatch":"\#A63A53","dot":"rgb(166, 58, 83)"},{"id":"chest-lower","swatch":"\#C56737","dot":"rgb(197, 103, 55)"}],"group":"chest"}
 # Subtest: GPU muscle labels point to their actual visible zones
-ok 1 - GPU muscle labels point to their actual visible zones
+not ok 1 - GPU muscle labels point to their actual visible zones
   ---
-  duration_ms: 27927.770104
+  duration_ms: 27772.025501
   type: 'test'
+  location: '/home/runner/work/Builder/Builder/tests/muscle-labels-browser.cjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    legs: leg-hams pin does not match GPU muscle
+    
+    0 !== 20
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 20
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/runner/work/Builder/Builder/tests/muscle-labels-browser.cjs:127:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
   ...
 1..1
 # tests 1
 # suites 0
-# pass 1
-# fail 0
+# pass 0
+# fail 1
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 28219.441128
+# duration_ms 28044.27755
