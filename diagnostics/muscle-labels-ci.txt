@@ -1,13 +1,13 @@
-Commit: 31c69531ff6c4d4e008d920d0cfb750c68ac7f3b
-Run: 39002405511
+Commit: 0e995147bc0a255c9fb8f89c42a2cb4a8348bc2f
+Run: 39002532478
 Browser test exit: 0
 ==================
 TAP version 13
-# Real-WebGL visible-muscle counts by group: {"chest":3,"back":4,"shoulders":3,"arms":2,"core":2,"legs":5}
+# Real-WebGL visible muscle IDs by group: {"chest":["chest-upper","chest-mid","chest-lower"],"back":["back-traps","back-mid","back-lats","back-lower"],"shoulders":["delt-front","delt-side","delt-rear"],"arms":["arm-biceps","arm-forearm"],"core":["core-lower","core-obliques"],"legs":["leg-quads","leg-adductors","leg-glutes","leg-hams","leg-calves"]}
 # Subtest: GPU muscle labels point to their actual visible zones
 ok 1 - GPU muscle labels point to their actual visible zones
   ---
-  duration_ms: 30242.358953
+  duration_ms: 33473.714788
   type: 'test'
   ...
 1..1
@@ -18,4 +18,4 @@ ok 1 - GPU muscle labels point to their actual visible zones
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 30484.059939
+# duration_ms 33746.931461
