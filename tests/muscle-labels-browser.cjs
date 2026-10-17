@@ -64,7 +64,7 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     }
     // The first regression covered only chest. Validate every other muscle
     // group from the real rotating WebGL model, not synthetic pixels.
-    const totals = { chest: result.length };
+    const totals = { chest: result.map(p => p.id) };
     for (const group of ['back', 'shoulders', 'arms', 'core', 'legs']) {
       await page.evaluate(g => navigate('lift/' + g), group);
       await page.waitForFunction(g => Body.mode.group === g && Object.keys(Body.labelAnchors).some(id => ZONE[id]?.g === g),
@@ -78,7 +78,7 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
         y: p.y,
       })));
       const visible = points.filter(p => p.group === group);
-      totals[group] = visible.length;
+      totals[group] = visible.map(p => p.id);
       assert.ok(visible.length > 0, group + ' has no visible muscle anchors');
       for (const p of visible) {
         assert.ok(p.inView, group + ': ' + p.id + ' outside stage');
@@ -91,7 +91,7 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
       if (group === 'legs' && Y('leg-quads') != null && Y('leg-calves') != null)
         assert.ok(Y('leg-quads') < Y('leg-calves'), 'Quadriceps must be above calves');
     }
-    console.log('Real-WebGL visible-muscle counts by group:', JSON.stringify(totals));
+    console.log('Real-WebGL visible muscle IDs by group:', JSON.stringify(totals));
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();
