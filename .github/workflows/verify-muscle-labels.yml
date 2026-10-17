@@ -21,11 +21,5 @@ jobs:
           node-version: '22'
       - name: Verify static muscle label algorithm
         run: node --test tests/muscle-labels.cjs
-      - name: Install Playwright and headless Chromium
-        run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
-      - name: Test WebGL2 muscle anchors in Chromium
-        run: |
-          export CHROMIUM_PATH="$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")"
-          node --test tests/muscle-labels-browser.cjs
+      # Browser/WebGL checks run once in muscle-labels.yml; this separate
+      # workflow checks fast deterministic geometry only.
