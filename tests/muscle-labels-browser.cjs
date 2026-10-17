@@ -33,7 +33,20 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 65000 }
       document.documentElement.classList.remove('locked');
       navigate('lift/chest');
     });
-    await page.waitForFunction(() => Body.ready && Object.keys(Body.labelAnchors).length > 0, null, { timeout: 40000 });
+    try {
+      await page.waitForFunction(() => Body.ready && Object.keys(Body.labelAnchors).length > 0, null, { timeout: 13000 });
+    } catch (error) {
+      const diagnostics = await page.evaluate(() => ({
+        ready: Body.ready, ok: Body.ok, failed: Body.failed, model: Body.debug.state(),
+        liftGroup: UI.liftGroup, mode: Body.mode, labels: Object.keys(Body.labelAnchors),
+        domLabels: document.querySelectorAll('.bs-lab').length,
+        stageHidden: document.querySelector('#bStage')?.hidden,
+        noBody3d: document.documentElement.classList.contains('no-body3d'),
+        version: document.querySelector('.release-label')?.textContent,
+      }));
+      throw new Error('WebGL body not ready for label validation: ' + JSON.stringify(diagnostics)
+        + '; page errors: ' + JSON.stringify(errors) + '; original: ' + error.message);
+    }
     await page.waitForTimeout(1700);
     const result = await page.evaluate(() => Object.entries(Body.labelAnchors).map(([id, point]) => ({
       id, expected: ZONE[id].i, actual: Body.debug.pickAt(point.x, point.y),
