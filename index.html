@@ -2370,6 +2370,46 @@ const ZONES = [
 ];
 const ZONE = Object.fromEntries(ZONES.map((z, i) => [z.id, { ...z, i: i + 1 }]));
 
+// Pick label dots from the *visible GPU zone-ID mask*, not the 3D average
+// centre of a possibly occluded or discontinuous muscle. Coordinates are in
+// WebGL framebuffer space (origin at bottom-left). This function has no GPU
+// dependencies and is also exercised by the regression tests.
+function chooseVisibleZoneMarkers(rgba, width, height, ids, preferredSide = 0) {
+  const allowed = new Set(ids), stats = new Map();
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const k = (y * width + x) * 4, zoneId = rgba[k];
+    if (!allowed.has(zoneId) || rgba[k + 3] < 128) continue;
+    const half = rgba[k + 1] >= 128 ? 0 : 1, key = zoneId * 2 + half;
+    let st = stats.get(key);
+    if (!st) stats.set(key, st = { n: 0, x: 0, y: 0 });
+    st.n++; st.x += x; st.y += y;
+  }
+  const result = new Map(), minimumArea = Math.max(6, Math.floor(width * height / 30000));
+  for (const zoneId of ids) {
+    const pos = stats.get(zoneId * 2), neg = stats.get(zoneId * 2 + 1);
+    const st = preferredSide > 0 ? pos : preferredSide < 0 ? neg
+      : (pos?.n || 0) >= (neg?.n || 0) ? pos : neg;
+    if (!st || st.n < minimumArea) continue; // occluded or too small to mark accurately
+    const half = st === neg ? 1 : 0, cx = st.x / st.n, cy = st.y / st.n;
+    const same = (x, y) => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      const k = (y * width + x) * 4;
+      return rgba[k] === zoneId && rgba[k + 3] >= 128 && (rgba[k + 1] >= 128 ? 0 : 1) === half;
+    };
+    let best = null, score = Infinity;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (!same(x, y)) continue;
+      // Keep the marker away from visible anatomical boundaries wherever the
+      // zone is wide enough, so its circle cannot imply an adjacent muscle.
+      const inside = same(x - 2, y) && same(x + 2, y) && same(x, y - 2) && same(x, y + 2);
+      const distance = (x - cx) ** 2 + (y - cy) ** 2 + (inside ? 0 : 100);
+      if (distance < score) { score = distance; best = { x, y, side: half ? -1 : 1, count: st.n }; }
+    }
+    if (best) result.set(zoneId, best);
+  }
+  return result;
+}
+
 /* Catmull–Clark subdivision for a mixed quad/triangle mesh with open borders (eyelids, mouth).
    pos: Float32Array(n*3); faces: array of index arrays. Returns { pos, quads (Int32Array, 4 per face), parentFace }. */
 function subdivideCC(pos, faces, attrs = []) {
@@ -3619,7 +3659,7 @@ out vec4 o;
 void main(){
   if (vW.y > uReveal) discard;
   int za = vPair.x, zb = vPair.y;
-  if (uPick > 0.5) { o = vec4(float(vEdge >= 0.0 ? za : zb) / 255.0, 0.0, 0.0, 1.0); return; }
+  if (uPick > 0.5) { o = vec4(float(vEdge >= 0.0 ? za : zb) / 255.0, vR.x >= 0.0 ? 1.0 : 0.0, 0.0, 1.0); return; }
   float aa = max(fwidth(vEdge), 1e-5);
   float t = clamp(0.5 + vEdge / (1.6 * aa), 0.0, 1.0);
   vec4 tint = mix(uZA[zb], uZA[za], t), fx = mix(uZB[zb], uZB[za], t);
@@ -4088,7 +4128,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     if (!r.width || !r.height) return;
     cssW = r.width; cssH = r.height;
     const { width: w, height: hh } = renderDimensions(r.width, r.height);
-    if (cv.width !== w || cv.height !== hh) { cv.width = w; cv.height = hh; freePick(); }
+    if (cv.width !== w || cv.height !== hh) { cv.width = w; cv.height = hh; freePick(); freeLabelTarget(); labelStamp = 0; }
     aspect = w / hh;
     linesEl.setAttribute('viewBox', `0 0 ${cssW} ${cssH}`);
     aim(!VP);
@@ -4876,6 +4916,68 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     return px4[3] ? px4[0] : 0;
   }
 
+
+  // A small, independent framebuffer encodes the visible muscle zone and the
+  // anatomical left/right side. This automatically excludes muscles hidden
+  // behind the body from callout anchors at the current camera angle.
+  let labelRT = null, labelStamp = 0, labelWasMoving = false, labelSide = 0, labelSeen = new Map();
+  function freeLabelTarget() {
+    if (!labelRT || !gl) return;
+    gl.deleteFramebuffer(labelRT.fb);
+    gl.deleteTexture(labelRT.tex);
+    gl.deleteRenderbuffer(labelRT.rb);
+    labelRT = null;
+  }
+  function labelTarget() {
+    const maxSide = coarseGPU ? 384 : 512;
+    const scale = Math.min(1, maxSide / Math.max(1, cv.width, cv.height));
+    const w = Math.max(2, Math.round(cv.width * scale)), h = Math.max(2, Math.round(cv.height * scale));
+    if (labelRT && labelRT.w === w && labelRT.h === h) return labelRT;
+    freeLabelTarget();
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+    labelRT = { fb, tex, rb, w, h, pixels: new Uint8Array(w * h * 4) };
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) { freeLabelTarget(); throw Error('Muscle label framebuffer incomplete'); }
+    return labelRT;
+  }
+  function scanVisibleLabels() {
+    if (!ok || !bodyVAO || !mode.group) return new Map();
+    const R = labelTarget();
+    try {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, R.fb);
+      gl.viewport(0, 0, R.w, R.h);
+      gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      drawBody(true);
+      gl.readPixels(0, 0, R.w, R.h, gl.RGBA, gl.UNSIGNED_BYTE, R.pixels);
+      const ids = groupZones(mode.group).map(z => ZONE[z.id].i);
+      const picked = chooseVisibleZoneMarkers(R.pixels, R.w, R.h, ids, SIDED[mode.group] ? side : 0);
+      const points = new Map();
+      for (const [zoneId, p] of picked) {
+        points.set(ZONES[zoneId - 1].id, { x: (p.x + 0.5) * cssW / R.w,
+          y: (1 - (p.y + 0.5) / R.h) * cssH, side: p.side, count: p.count });
+      }
+      return points;
+    } finally {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.disable(gl.SCISSOR_TEST);
+    }
+  }
+
   /* ---------- callouts ---------- */
   function project(p) {
     const c = M4.xf(VP, p);
@@ -4885,6 +4987,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
   let labelNodes = new Map();
   function buildLabels() {
     labelsEl.replaceChildren(); labelNodes = new Map(); linesEl.replaceChildren();
+    labelSeen = new Map(); labelStamp = 0; labelWasMoving = false;
     if (!mode.group) return;
     for (const z of groupZones(mode.group)) {
       const b = document.createElement('button');
@@ -4898,24 +5001,30 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     }
     labelsDirty = true;
   }
-  function placeLabels() {
+  function placeLabels(now = performance.now(), cameraMoving = false) {
     if (!mode.group || !mesh || !labelNodes.size) return;
+    // Render one small ID mask per ~160 ms on touch devices; force the last
+    // scan after the camera settles. No full-resolution GPU readback is needed.
+    if (side !== labelSide) { labelSide = side; labelStamp = 0; }
+    const interval = coarseGPU ? 175 : 120;
+    const settled = !cameraMoving && labelWasMoving;
+    if (!labelStamp || now - labelStamp >= interval || settled) {
+      try { labelSeen = scanVisibleLabels(); }
+      catch (e) { console.warn('[body-labels]', e); labelSeen = new Map(); }
+      labelStamp = now;
+    }
+    labelWasMoving = !!cameraMoving;
     const cw = colW(), top = 58, bot = cssH - 34;
     const items = [];
     for (const [id, n] of labelNodes) {
-      // anchor on whichever side of the body faces the camera
-      let best = null;
-      for (const s of SIDED[mode.group] ? [side] : [1, -1]) {
-        const zi = zoneInfo(id, s); if (!zi?.anchor) continue;
-        const to = V3.norm(V3.sub(eye, zi.anchor)), f = V3.dot(zi.n, to);
-        if (!best || f > best.f) best = { zi, f };
-      }
-      if (!best) continue;
-      const p = project(best.zi.anchor); if (!p) continue;
+      const p = labelSeen.get(id);
+      n.b.hidden = !p;
+      n.ln.style.display = p ? '' : 'none';
+      n.dt.style.display = p ? '' : 'none';
+      if (!p) continue; // never place a dot over the wrong muscle/empty space
       n.w = n.b.offsetWidth || n.w || 60;
-      items.push({ id, n, p, f: best.f, left: p[0] < cssW / 2 });
+      items.push({ id, n, p: [p.x, p.y], left: p.x < cssW / 2 });
     }
-    // a callout goes to the column on its muscle's side of the framed part; the figure slides away from a lone column
     const gc = project(tgt) || [cssW / 2, cssH / 2];
     items.forEach(it => { it.left = it.p[0] < gc[0] - 2; });
     const nL = items.filter(it => it.left).length, nR = items.length - nL;
@@ -4925,22 +5034,24 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
       const col_ = items.filter(it => it.left === left).sort((a, b) => a.p[1] - b.p[1]);
       col_.forEach(it => { it.y = clamp(it.p[1], top, bot); });
       for (let it = 0; it < 6; it++) {
-        for (let i = 1; i < col_.length; i++) if (col_[i].y - col_[i - 1].y < 36) { const m = (col_[i].y + col_[i - 1].y) / 2; col_[i - 1].y = m - 18; col_[i].y = m + 18; }
+        for (let i = 1; i < col_.length; i++) if (col_[i].y - col_[i - 1].y < 36) {
+          const m = (col_[i].y + col_[i - 1].y) / 2;
+          col_[i - 1].y = m - 18; col_[i].y = m + 18;
+        }
         col_.forEach(c => { c.y = clamp(c.y, top, bot); });
       }
     }
     for (const it of items) {
       const { n, p } = it;
-      const op = clamp((it.f + .2) / .45, 0, 1), vis = .38 + .62 * op;
       const lx = it.left ? 10 : cssW - 10 - n.w, ex = it.left ? 10 + n.w : cssW - 10 - n.w;
       n.b.style.transform = `translate(${lx.toFixed(1)}px, ${(it.y - 15).toFixed(1)}px)`;
-      n.b.style.opacity = vis.toFixed(3);
+      n.b.style.opacity = '1';
       const mx = ex + (it.left ? 14 : -14);
       n.ln.setAttribute('d', `M${ex.toFixed(1)} ${it.y.toFixed(1)} L${mx.toFixed(1)} ${it.y.toFixed(1)} L${p[0].toFixed(1)} ${p[1].toFixed(1)}`);
-      n.ln.style.opacity = (.25 + .75 * op).toFixed(3);
+      n.ln.style.opacity = '.8';
       n.ln.classList.toggle('on', mode.zone === it.id);
       n.dt.setAttribute('cx', p[0].toFixed(1)); n.dt.setAttribute('cy', p[1].toFixed(1));
-      n.dt.style.opacity = op.toFixed(3);
+      n.dt.style.opacity = '1';
       n.dt.classList.toggle('on', mode.zone === it.id);
     }
     labelsDirty = false;
@@ -4962,7 +5073,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     // submissions to 30fps on touch and 45fps on large 2K desktop buffers.
     const targetFPS = coarseGPU ? 30 : (cv.width * cv.height > 2600000 ? 45 : 60);
     if (!lastPaint || now - lastPaint >= 1000 / targetFPS) { draw(); lastPaint = now; }
-    if (mode.group) placeLabels();
+    if (mode.group) placeLabels(now, !!(m1 || drag?.on));
     const revealing = revealT >= 0 && clock - revealT < 1.7, banding = clock - bandT < 1.9;
     if (m1 || m2 || m3 || m4 || m5 || revealing || banding || drag || labelsDirty) requestAnimationFrame(frame);
     else { running = false; scheduleIdle(); }
@@ -5089,6 +5200,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     on(h) { onPick = h.pick || onPick; onHover = h.hover || onHover; onFace = h.face || onFace; },
     get ok() { return ok; }, get failed() { return failed; }, get ready() { return !!bodyVAO; },
     get mode() { return { ...mode }; }, get yaw() { return cam.yaw.x; },
+    get labelAnchors() { return Object.fromEntries(labelSeen); },
     hoverGroup(g) { hoverG = g || null; wake(); },
     debug: { col(o) { Object.assign(col, o); wake(); }, cam(t, d, yaw, pitch = 0.05) { cam.tx.x = cam.tx.t = t[0]; cam.ty.x = cam.ty.t = t[1]; cam.tz.x = cam.tz.t = t[2]; cam.dist.x = cam.dist.t = d; cam.yaw.x = cam.yaw.t = yaw; cam.pitch.x = cam.pitch.t = pitch; cam.sx.x = cam.sx.t = 0; for (const k of Object.keys(cam)) cam[k].v = 0; wake(); }, dbg(v) { dbg = v; wake(); }, yaw(a) { cam.yaw.x = cam.yaw.t = a; cam.yaw.v = 0; wake(); }, pickAt: (x, y) => readPick(x, y), project: p => project(p), zone: (id, s) => zoneInfo(id, s), snap() { for (const k of Object.keys(cam)) { cam[k].x = cam[k].t; cam[k].v = 0; } revealT = -1; clock += 5; wake(); }, state() { return { ok, active, inView, running, revealT, clock, cw: cv.width, ch: cv.height, maxEdge: MODEL_2K_EDGE, pixelBudget: maxCanvasPixels, lowPowerGPU, demo: !!demo }; }, dimensions(w, h, dpr) { return renderDimensions(w, h, dpr); }, clip(q) {
       // how far anything passes into the body over one rep: floor, static equipment, the bar or dumbbells in the hands
