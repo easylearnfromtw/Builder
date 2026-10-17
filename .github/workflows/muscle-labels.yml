@@ -34,6 +34,14 @@ jobs:
           echo "$?" > /tmp/jianren-browser-exit.txt
           cat /tmp/jianren-browser-results.log
           exit 0
+      - name: Preserve chest rendering screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jianren-pectoralis-v3-visual
+          path: /tmp/jianren-chest-v3.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Save diagnostic details in repository
         if: always()
         shell: bash
