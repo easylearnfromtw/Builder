@@ -1,0 +1,31 @@
+name: Jianren Muscle Label Validation
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - tests/muscle-labels.cjs
+      - tests/muscle-labels-browser.cjs
+      - .github/workflows/muscle-labels.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check pure marker geometry
+        run: node --test tests/muscle-labels.cjs
+      - name: Install browser harness
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test actual rendered muscle labels in WebGL
+        env:
+          CHROMIUM_PATH: ''
+        run: node --test tests/muscle-labels-browser.cjs
