@@ -906,6 +906,13 @@ html.no-body3d .no3d-only{display:inline-flex}
 .bs-lab[aria-pressed="true"]{background:var(--lift-2); color:var(--on-acc)}
 .bs-lab[aria-pressed="true"] i{background:var(--on-acc)}
 .bs-lab:active{scale:1.08}
+/* Anatomical region key: opaque badges + matching pins stay legible over 2K textures. */
+.bs-lab.bs-region{background:var(--paper);box-shadow:0 4px 16px rgba(27,18,21,.16),inset 0 0 0 1.5px var(--zone-hue);font-weight:750}
+.bs-lab.bs-region::before{content:"";display:block;flex:none;width:9px;height:9px;border-radius:50%;background:var(--zone-hue);box-shadow:0 0 0 2px var(--paper)}
+.bs-lab.bs-region[aria-pressed="true"]{background:var(--ink);color:var(--paper);box-shadow:0 5px 18px rgba(27,18,21,.25),inset 0 0 0 2px var(--zone-hue)}
+.bs-lines path.bs-region-line{stroke:var(--zone-hue);stroke-width:1.7;filter:drop-shadow(0 0 1px rgba(255,255,255,.8))}
+.bs-lines circle.bs-region-dot{fill:var(--zone-hue);stroke:var(--paper);stroke-width:2.5;filter:drop-shadow(0 1px 2px rgba(18,17,19,.45))}
+.bs-lines circle.bs-region-dot.on{fill:var(--zone-hue);stroke:var(--ink);stroke-width:2.5}
 .bs-top{position:absolute; left:10px; right:10px; top:10px; z-index:4; display:flex; align-items:center; gap:8px; pointer-events:none}
 .bs-top > *{pointer-events:auto}
 .bs-face{width:132px}
@@ -950,6 +957,8 @@ html.no-body3d .no3d-only{display:inline-flex}
 .zchip:active{scale:.96}
 .zchip small{font:600 11px var(--f-num); opacity:.6}
 .zchip i{width:6px; height:6px; border-radius:50%; background:var(--muscle)}
+.zchip.region-chip::before{content:"";display:block;flex:none;width:9px;height:9px;border-radius:50%;background:var(--zone-hue)}
+.zchip.region-chip[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--zone-hue)}
 .zchip[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
 .zinfo{display:flex; flex-direction:column; gap:10px}
 .zinfo-h{display:flex; align-items:flex-start; gap:14px}
@@ -1042,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群定位 v2 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 肌群清晰版 v3 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -2370,6 +2379,21 @@ const ZONES = [
 ];
 const ZONE = Object.fromEntries(ZONES.map((z, i) => [z.id, { ...z, i: i + 1 }]));
 
+// Pectoralis major is ONE muscle, subdivided here into training regions.
+// Avoid assigning the inferior pectoralis zone to abdominal vertices solely
+// because its ellipsoid happens to be the closest anatomical patch.
+function validPectoralLabel(zoneId, x, y, depth, patchDistance) {
+  if (zoneId < 1 || zoneId > 3) return true;
+  const t = Math.max(0, Math.min(1, (Math.abs(x) - 0.10) / 0.115));
+  const inferiorFold = 1.245 + 0.055 * t * t * (3 - 2 * t);
+  return y >= inferiorFold && y <= 1.525 && depth >= 0.010 && patchDistance <= 1.1;
+}
+const CHEST_ZONE_VIS = Object.freeze({
+  'chest-upper': { rgb: [0.99, 0.56, 0.48], alpha: 0.40, swatch: '#DC796D' },
+  'chest-mid':   { rgb: [0.67, 0.13, 0.20], alpha: 0.34, swatch: '#A63A53' },
+  'chest-lower': { rgb: [0.94, 0.41, 0.22], alpha: 0.47, swatch: '#C56737' },
+});
+
 // Pick label dots from the *visible GPU zone-ID mask*, not the 3D average
 // centre of a possibly occluded or discontinuous muscle. Coordinates are in
 // WebGL framebuffer space (origin at bottom-left). This function has no GPU
@@ -2793,7 +2817,7 @@ function buildBodyMesh(src) {
     let f2 = 1e9, o2 = null;
     for (const L of cand) { if (L.o.mid === o.mid || !near(L, x, y, z, 0.07)) continue; const f = ev(L, x, y, z); if (f < f2) { f2 = f; o2 = L.o; } }
     const gap = f2 - f1;
-    zone[v] = o.z;
+    zone[v] = validPectoralLabel(o.z, x, y, z, f1) ? o.z : 0;
     seam[v] = (1 - ss(0, 0.26, gap)) * Math.min(o.gr, o2 ? o2.gr : 1) * (o2 && o2.fam === o.fam ? 0.35 : 1);
     swell[v] = ss(0.05, 0.7, gap) * o.sw;
     ten[v] = o.tn;
@@ -3663,7 +3687,7 @@ void main(){
   float aa = max(fwidth(vEdge), 1e-5);
   float t = clamp(0.5 + vEdge / (1.6 * aa), 0.0, 1.0);
   vec4 tint = mix(uZA[zb], uZA[za], t), fx = mix(uZB[zb], uZB[za], t);
-  float line = (za != zb ? 1.0 - smoothstep(0.6 * aa, 2.2 * aa, abs(vEdge)) : 0.0) * fx.z;
+  float line = (za != zb ? 1.0 - smoothstep(0.48 * aa, 3.0 * aa, abs(vEdge)) : 0.0) * fx.z;
   vec3 n0 = normalize(vN); if (!gl_FrontFacing) n0 = -n0;
   vec3 v = normalize(uEye - vW);
   vec3 L = normalize(uKey);
@@ -4036,6 +4060,7 @@ void main(){
     const local = () => setTimeout(() => { try { done(buildBodyMesh(src)); } catch (e) { console.warn('[body]', e); building = false; fail(); } }, 30);
     try {
       const code = `'use strict';const ZONES=${JSON.stringify(ZONES)};const ZONE=${JSON.stringify(ZONE)};
+${validPectoralLabel.toString()}
 ${subdivideCC.toString()}
 ${vertexNormals.toString()}
 ${quadsToTris.toString()}
@@ -4296,7 +4321,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     const anyHeat = heatOn && Object.keys(heat).length > 0;
     for (let i = 0; i < NZ; i++) {
       const z = i ? ZONES[i - 1] : null;
-      let a = 0, dim = 0, glow = 0, line = 0, desat = 0;
+      let a = 0, dim = 0, glow = 0, line = 0, desat = 0, ink = col.sel;
       if (demo) {
         const pr = z && demo.prim.has(z.id), se = z && demo.sec.has(z.id), k = demo.k;
         if (pr) { out.push([[0.92, 0.12, 0.1], .14 + .3 * k, 0, .12 + .3 * k, 0, 0]); continue; }
@@ -4311,8 +4336,14 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
         if (mode.zone === z.id) glow = .38;                      // the chosen muscle stays vivid and lit
         else if (i === hoverZ) glow = .7;
         else if (mode.zone) { desat = .85; dim = .22; }
+        if (mode.group === 'chest' && CHEST_ZONE_VIS[z.id]) {
+          const tone = CHEST_ZONE_VIS[z.id];
+          ink = tone.rgb;
+          a = mode.zone ? (mode.zone === z.id ? 0.62 : 0.13) : tone.alpha;
+          if (mode.zone === z.id) glow = 0.25;
+        }
       }
-      out.push([col.sel, a, dim, glow, line, desat]);
+      out.push([ink, a, dim, glow, line, desat]);
     }
     return out;
   }
@@ -4801,10 +4832,10 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     updateDemo(RM.matches ? 0 : dt);
     return !RM.matches || demo.t < .05;
   }
-  // clothes fade back when a part is framed, so its muscles read clearly
+  // Remove the frosted hoodie in anatomy mode: its glass blur obscures muscle boundaries.
   let clothK = 1;
   function stepCloth(dt) {
-    const t = demo ? .9 : mode.group ? .22 : 1, k = 1 - Math.exp(-dt * (RM.matches ? 60 : 8));
+    const t = demo ? .9 : mode.group ? 0 : 1, k = 1 - Math.exp(-dt * (RM.matches ? 60 : 8));
     clothK += (t - clothK) * k;
     return Math.abs(t - clothK) > .003;
   }
@@ -4827,7 +4858,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
       zs.forEach((z, i) => { A.set([z.c[0], z.c[1], z.c[2], z.a], i * 4); B.set([z.dim, z.glow, z.line, z.desat], i * 4); });
       gl.uniform4fv(p.u('uZA'), A); gl.uniform4fv(p.u('uZB'), B);
       gl.uniform3fv(p.u('uEye'), eye); gl.uniform3fv(p.u('uBg'), col.bg); gl.uniform3fv(p.u('uRim'), col.rim); gl.uniform3fv(p.u('uGlow'), col.glow);
-      gl.uniform3fv(p.u('uLineC'), col.lineC);
+      gl.uniform3fv(p.u('uLineC'), mode.group === 'chest' ? [0.31, 0.085, 0.12] : col.lineC);
       gl.uniform3fv(p.u('uM0'), col.m0); gl.uniform3fv(p.u('uM1'), col.m1); gl.uniform3fv(p.u('uM2'), col.m2);
       gl.uniform3fv(p.u('uT0'), col.t0); gl.uniform3fv(p.u('uT1'), col.t1); gl.uniform3fv(p.u('uH0'), col.h0); gl.uniform3fv(p.u('uH1'), col.h1);
       const ky = cam.yaw.x + col.ky;
@@ -4835,7 +4866,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
       gl.uniform4fv(p.u('uLk'), col.lk); gl.uniform3fv(p.u('uFill'), col.fill); gl.uniform3fv(p.u('uSheen'), col.sheen);
       const fy = cam.yaw.x + col.fy; gl.uniform3fv(p.u('uFillD'), V3.norm([Math.sin(fy), .1, Math.cos(fy)]));
       gl.uniform1f(p.u('uDark'), col.dark);
-      gl.uniform1f(p.u('uLine'), .85);
+      gl.uniform1f(p.u('uLine'), mode.group === 'chest' ? 1 : .85);
       gl.uniform1f(p.u('uDbg'), dbg);
       const bt = clock - bandT;
       gl.uniform1f(p.u('uBand'), bt < 1.8 ? lerp(-.4, 2.6, bt / 1.8) : -9);
@@ -4991,12 +5022,20 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     if (!mode.group) return;
     for (const z of groupZones(mode.group)) {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'bs-lab'; b.dataset.act = 'lift-zone'; b.dataset.z = z.id;
+      b.type = 'button'; b.className = 'bs-lab' + (CHEST_ZONE_VIS[z.id] ? ' bs-region' : '');
+       if (CHEST_ZONE_VIS[z.id]) b.style.setProperty('--zone-hue', CHEST_ZONE_VIS[z.id].swatch);
+       b.dataset.act = 'lift-zone'; b.dataset.z = z.id;
       b.innerHTML = `<b>${esc(z.name)}</b>${heat[z.id] ? '<i aria-hidden="true"></i>' : ''}`;
       b.setAttribute('aria-pressed', String(mode.zone === z.id));
       labelsEl.appendChild(b);
       const ln = document.createElementNS('http://www.w3.org/2000/svg', 'path'), dt = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dt.setAttribute('r', '3.4'); linesEl.append(ln, dt);
+      dt.setAttribute('r', CHEST_ZONE_VIS[z.id] ? '5' : '3.4');
+       if (CHEST_ZONE_VIS[z.id]) {
+         ln.classList.add('bs-region-line'); dt.classList.add('bs-region-dot');
+         ln.style.setProperty('--zone-hue', CHEST_ZONE_VIS[z.id].swatch);
+         dt.style.setProperty('--zone-hue', CHEST_ZONE_VIS[z.id].swatch);
+       }
+       linesEl.append(ln, dt);
       labelNodes.set(z.id, { b, ln, dt, w: 0 });
     }
     labelsDirty = true;
@@ -6091,7 +6130,7 @@ function renderLiftGroup(anim, load) {
   $('#liftBody').innerHTML = `
     <div class="zchips" role="group" aria-label="${GROUP_NAME[g]}細部肌群">
       <button type="button" class="zchip" data-act="lift-zone" data-z="" aria-pressed="${!zid}">全部</button>
-      ${zones.map(z => `<button type="button" class="zchip" data-act="lift-zone" data-z="${z.id}" aria-pressed="${zid === z.id}">${load.zone[z.id].sets ? '<i aria-hidden="true"></i>' : ''}${esc(z.name)}<small>${prim(z.id).length}</small></button>`).join('')}
+      ${zones.map(z => `<button type="button" class="zchip${CHEST_ZONE_VIS[z.id] ? ' region-chip' : ''}" style="${CHEST_ZONE_VIS[z.id] ? '--zone-hue:' + CHEST_ZONE_VIS[z.id].swatch : ''}" data-act="lift-zone" data-z="${z.id}" aria-pressed="${zid === z.id}">${!CHEST_ZONE_VIS[z.id] && load.zone[z.id].sets ? '<i aria-hidden="true"></i>' : ''}${esc(z.name)}<small>${prim(z.id).length}</small></button>`).join('')}
     </div>
     ${info}
     <div class="exl" id="exList">${list || '<div class="empty">這個部位還沒有動作，可從「自由組合訓練」新增自訂動作。</div>'}</div>`;
