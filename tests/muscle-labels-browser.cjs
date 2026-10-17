@@ -57,6 +57,23 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
       onScreen: point.x >= 0 && point.y >= 0 && point.x < document.querySelector('#bStage').clientWidth
         && point.y < document.querySelector('#bStage').clientHeight,
     })));
+    // Screenshot a real GPU render matching the iPhone's chest detail view.
+    await page.locator('#bStage').screenshot({ path: '/tmp/jianren-chest-v3.png' });
+    const anatomy = await page.evaluate(() => ({
+      lowerBounds: Body.debug.zone('chest-lower', 1)?.lo,
+      swatches: [...document.querySelectorAll('#bLabels .bs-region')]
+        .map(e => ({ id: e.dataset.z, swatch: e.style.getPropertyValue('--zone-hue'),
+          dot: getComputedStyle(e, '::before').backgroundColor })),
+      group: Body.mode.group,
+    }));
+    assert.equal(anatomy.group, 'chest');
+    assert.ok(anatomy.lowerBounds, 'lower pectoral mesh region must exist');
+    assert.ok(anatomy.lowerBounds[1] >= 1.240,
+      'inferior pectoral vertex must not leak down into the upper abdomen: ' + JSON.stringify(anatomy.lowerBounds));
+    assert.equal(anatomy.swatches.length, 3, 'three separate chest annotation keys must appear');
+    assert.equal(new Set(anatomy.swatches.map(x => x.swatch)).size, 3,
+      'upper/middle/lower chest labels must have distinct colors');
+    console.log('Pectoral color key and inferior bounds:', JSON.stringify(anatomy));
     assert.ok(result.length > 0, 'at least one visible chest muscle must have a label');
     for (const p of result) {
       assert.ok(p.onScreen, p.id + ' anchor outside WebGL stage');
