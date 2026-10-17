@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌清晰版 v4.3 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌分區清晰版 v4.4 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -3760,15 +3760,36 @@ void main(){
   float chestKeep = smoothstep(pectoralFloor - chestAA, pectoralFloor + chestAA, vR.y);
   int activeZone = vEdge >= 0.0 ? za : zb;
   bool isPectoral = activeZone >= 1 && activeZone <= 3;
+  bool chestDetail = uChestMask > 0.5 && isPectoral;
+  // Upper / middle / lower are training emphasis REGIONS of one pectoralis
+  // major, not separate anatomical muscles. Nearest-patch segmentation made
+  // the lower band disappear into a narrow orange sliver. Use the existing
+  // anatomical pectoral mask as the boundary, then divide its visible height
+  // into three stable instructional regions that follow the chest fold.
+  float chestTop = 1.522 - 0.045 * smoothstep(0.12, 0.265, abs(vR.x));
+  float chestHeight = max(0.08, chestTop - pectoralFloor);
+  float chestH = clamp((vR.y - pectoralFloor) / chestHeight, 0.0, 1.0);
+  float chestLowerLine = pectoralFloor + chestHeight * 0.28;
+  float chestUpperLine = pectoralFloor + chestHeight * 0.67;
+  int chestBand = chestH >= 0.67 ? 1 : chestH >= 0.28 ? 2 : 3;
+  if (chestDetail) activeZone = chestBand;
   if (uPick > 0.5) {
-    if (uChestMask > 0.5 && isPectoral && chestKeep < 0.5) activeZone = 0;
+    if (chestDetail && chestKeep < 0.5) activeZone = 0;
     o = vec4(float(activeZone) / 255.0, vR.x >= 0.0 ? 1.0 : 0.0, 0.0, 1.0); return;
   }
   float aa = max(fwidth(vEdge), 1e-5);
   float t = clamp(0.5 + vEdge / (1.6 * aa), 0.0, 1.0);
   vec4 tint = mix(uZA[zb], uZA[za], t), fx = mix(uZB[zb], uZB[za], t);
   float line = (za != zb ? 1.0 - smoothstep(0.48 * aa, 3.0 * aa, abs(vEdge)) : 0.0) * fx.z;
-  if (uChestMask > 0.5 && ((za >= 1 && za <= 3) || (zb >= 1 && zb <= 3))) {
+  if (chestDetail) {
+    tint = uZA[chestBand];
+    fx = uZB[chestBand];
+    float d = min(abs(vR.y - chestLowerLine), abs(vR.y - chestUpperLine));
+    float w = max(fwidth(vR.y), 0.0015);
+    line = (1.0 - smoothstep(w, 2.7 * w, d)) * chestKeep;
+    tint.a *= chestKeep;
+    fx.x = max(fx.x, 1.0 - chestKeep);
+  } else if (uChestMask > 0.5 && ((za >= 1 && za <= 3) || (zb >= 1 && zb <= 3))) {
     tint.a *= chestKeep;
     fx.x = max(fx.x, 1.0 - chestKeep);
     line *= chestKeep;
@@ -3884,7 +3905,7 @@ void main(){
   // Lower sternocostal fibres face away from the key light. Without a
   // dedicated minimum fill their orange zone appears muddy brown against the
   // dark red middle zone, especially on mobile screens.
-  float chestShade = uChestMask > 0.5 && (za == 3 || zb == 3)
+  float chestShade = chestDetail && chestBand == 3
     ? (0.72 + 0.44 * lum) : (0.45 + 0.75 * lum);
   c = mix(c, tint.rgb * chestShade, tint.a);
   c += uGlow * fx.y * (0.1 + 0.42 * fr);
