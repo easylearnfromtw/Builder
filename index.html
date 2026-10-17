@@ -3541,16 +3541,23 @@ const Body = (() => {
   const stage = $('#bStage'), cv = $('#bCanvas'), labelsEl = $('#bLabels'), linesEl = $('#bLines');
   const tipEl = $('#bTip'), hintEl = $('#bHint'), loadEl = $('#bLoad');
   const FOV = 27 * Math.PI / 180, NZ = ZONES.length + 1;
-  // GPU budget: CSS sizing is unchanged. Bound physical pixels and offscreen
-  // renderbuffer allocations (the frosted hoodie has several full-size passes).
-  // This also protects high-DPR phones from allocating enormous MSAA buffers.
+  // 2K (2048px longest edge) GPU rendering: the physical canvas may exceed
+  // the display's device-pixel ratio for sharper anatomical edges and labels.
+  // Keep a separate pixel/memory budget because the shirt uses offscreen MSAA.
+  const MODEL_2K_EDGE = 2048;
   const coarseGPU = matchMedia('(pointer: coarse)').matches;
-  const maxCanvasPixels = coarseGPU ? 960000 : 2400000;
-  let maxRenderSize = 4096, lastPaint = 0;
+  const lowPowerGPU = (Number(navigator.deviceMemory) > 0 && Number(navigator.deviceMemory) <= 4)
+    || navigator.connection?.saveData === true;
+  const maxCanvasPixels = lowPowerGPU ? (coarseGPU ? 1400000 : 2100000)
+    : (coarseGPU ? 3300000 : 4300000);
+  const maxUpscale = lowPowerGPU ? (coarseGPU ? 1.75 : 2) : (coarseGPU ? 3.5 : 4);
+  let maxRenderSize = MODEL_2K_EDGE, lastPaint = 0;
   function renderDimensions(width, height, dpr = devicePixelRatio || 1) {
-    const desired = Math.min(Math.max(1, dpr), coarseGPU ? 1.5 : 2);
+    const edge = Math.max(1, width, height);
+    const desired = lowPowerGPU ? Math.min(Math.max(1, dpr), maxUpscale)
+      : Math.min(maxUpscale, Math.max(1, dpr, MODEL_2K_EDGE / edge));
     const budget = Math.sqrt(maxCanvasPixels / Math.max(1, width * height));
-    const dimension = maxRenderSize / Math.max(1, width, height);
+    const dimension = Math.min(MODEL_2K_EDGE, maxRenderSize) / edge;
     const scale = Math.min(desired, budget, dimension);
     return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
   }
@@ -4035,7 +4042,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     if (tried) return; tried = true;
     try { gl = cv.getContext('webgl2', { antialias: true, alpha: false, depth: true, premultipliedAlpha: false, powerPreference: 'high-performance' }); } catch (_) { gl = null; }
     if (!gl) return fail();
-    maxRenderSize = Math.max(1, Math.min(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+    maxRenderSize = Math.max(1, Math.min(MODEL_2K_EDGE, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), gl.getParameter(gl.MAX_TEXTURE_SIZE)));
     P.body = glProgram(gl, VS, FS);
     P.cloth = glProgram(gl, VS, FS_CLOTH);
     P.blur = glProgram(gl, VS_FULL, FS_BLUR); P.copy = glProgram(gl, VS_FULL, FS_COPY); P.prop = glProgram(gl, VS_PROP, FS_PROP);
@@ -4102,8 +4109,9 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     if (rt && rt.w === w && rt.h === h) return rt;
     freeRT();
     try {
-      // 2x MSAA is sufficient at mobile scale; keep 4x for larger screens.
-      const smp = Math.max(0, Math.min(coarseGPU ? 2 : 4, gl.getParameter(gl.MAX_SAMPLES) | 0));
+      // At 2K, extra MSAA samples multiply GPU bandwidth and renderbuffer
+      // memory; 2x plus the higher physical resolution gives crisp edges.
+      const smp = Math.max(0, Math.min(coarseGPU || w * h > 2600000 ? 2 : 4, gl.getParameter(gl.MAX_SAMPLES) | 0));
       const fb = gl.createFramebuffer(), c = gl.createRenderbuffer(), d = gl.createRenderbuffer();
       gl.bindRenderbuffer(gl.RENDERBUFFER, c); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, smp, gl.RGBA8, w, h);
       gl.bindRenderbuffer(gl.RENDERBUFFER, d); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, smp, gl.DEPTH_COMPONENT24, w, h);
@@ -4138,7 +4146,10 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     gl.viewport(0, 0, Q.w, Q.h);
     // the blur widens as the camera closes in: fabric a few millimetres off the muscle
     const px = clamp(col.blur * (R.h / 2) / (tanY * Math.max(.3, cam.dist.x)), 5, 34) / 4;
-    for (const k of [1, .55]) {
+    // A single separable blur at high resolutions/low memory halves the blur
+    // draw calls; keep the softer two-pass treatment at smaller sizes.
+    const passes = lowPowerGPU || R.w * R.h > 2600000 ? [1.2] : [1, .55];
+    for (const k of passes) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, Q2.fb); gl.bindTexture(gl.TEXTURE_2D, Q.tex); gl.uniform2f(P.blur.u('uD'), px * k / Q.w, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindFramebuffer(gl.FRAMEBUFFER, Q.fb); gl.bindTexture(gl.TEXTURE_2D, Q2.tex); gl.uniform2f(P.blur.u('uD'), 0, px * k / Q.h); gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
@@ -4947,9 +4958,10 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
       if (z !== hoverZ) { hoverZ = z; stage.classList.toggle('bs-hot', !!z); }
       onHover(z ? ZONES[z - 1] : null, lastPtr);
     }
-    // Animation state still advances at display rate. On touch devices only
-    // submit expensive WebGL passes at up to 30 FPS; pointer picks remain live.
-    if (!coarseGPU || !lastPaint || now - lastPaint >= 1000 / 30) { draw(); lastPaint = now; }
+    // Advance animation and hit-testing at display rate. Bound expensive GPU
+    // submissions to 30fps on touch and 45fps on large 2K desktop buffers.
+    const targetFPS = coarseGPU ? 30 : (cv.width * cv.height > 2600000 ? 45 : 60);
+    if (!lastPaint || now - lastPaint >= 1000 / targetFPS) { draw(); lastPaint = now; }
     if (mode.group) placeLabels();
     const revealing = revealT >= 0 && clock - revealT < 1.7, banding = clock - bandT < 1.9;
     if (m1 || m2 || m3 || m4 || m5 || revealing || banding || drag || labelsDirty) requestAnimationFrame(frame);
@@ -5078,7 +5090,7 @@ onmessage=e=>{const m=buildBodyMesh(e.data);postMessage(m,[m.data.buffer,m.idx.b
     get ok() { return ok; }, get failed() { return failed; }, get ready() { return !!bodyVAO; },
     get mode() { return { ...mode }; }, get yaw() { return cam.yaw.x; },
     hoverGroup(g) { hoverG = g || null; wake(); },
-    debug: { col(o) { Object.assign(col, o); wake(); }, cam(t, d, yaw, pitch = 0.05) { cam.tx.x = cam.tx.t = t[0]; cam.ty.x = cam.ty.t = t[1]; cam.tz.x = cam.tz.t = t[2]; cam.dist.x = cam.dist.t = d; cam.yaw.x = cam.yaw.t = yaw; cam.pitch.x = cam.pitch.t = pitch; cam.sx.x = cam.sx.t = 0; for (const k of Object.keys(cam)) cam[k].v = 0; wake(); }, dbg(v) { dbg = v; wake(); }, yaw(a) { cam.yaw.x = cam.yaw.t = a; cam.yaw.v = 0; wake(); }, pickAt: (x, y) => readPick(x, y), project: p => project(p), zone: (id, s) => zoneInfo(id, s), snap() { for (const k of Object.keys(cam)) { cam[k].x = cam[k].t; cam[k].v = 0; } revealT = -1; clock += 5; wake(); }, state() { return { ok, active, inView, running, revealT, clock, cw: cv.width, ch: cv.height, demo: !!demo }; }, clip(q) {
+    debug: { col(o) { Object.assign(col, o); wake(); }, cam(t, d, yaw, pitch = 0.05) { cam.tx.x = cam.tx.t = t[0]; cam.ty.x = cam.ty.t = t[1]; cam.tz.x = cam.tz.t = t[2]; cam.dist.x = cam.dist.t = d; cam.yaw.x = cam.yaw.t = yaw; cam.pitch.x = cam.pitch.t = pitch; cam.sx.x = cam.sx.t = 0; for (const k of Object.keys(cam)) cam[k].v = 0; wake(); }, dbg(v) { dbg = v; wake(); }, yaw(a) { cam.yaw.x = cam.yaw.t = a; cam.yaw.v = 0; wake(); }, pickAt: (x, y) => readPick(x, y), project: p => project(p), zone: (id, s) => zoneInfo(id, s), snap() { for (const k of Object.keys(cam)) { cam[k].x = cam[k].t; cam[k].v = 0; } revealT = -1; clock += 5; wake(); }, state() { return { ok, active, inView, running, revealT, clock, cw: cv.width, ch: cv.height, maxEdge: MODEL_2K_EDGE, pixelBudget: maxCanvasPixels, lowPowerGPU, demo: !!demo }; }, dimensions(w, h, dpr) { return renderDimensions(w, h, dpr); }, clip(q) {
       // how far anything passes into the body over one rep: floor, static equipment, the bar or dumbbells in the hands
       const hyp = a => Math.hypot(a[0], a[1], a[2]);
       Body.demo({ prim: [], sec: [], ...q }); if (!demo) return null;
