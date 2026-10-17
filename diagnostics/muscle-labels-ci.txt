@@ -1,34 +1,5 @@
-Commit: 1a3075b4664dca05f981fa73c2e311afcb8c22f7
-Run: 39009236249
-Browser test exit: 1
+Commit: 02118be28a9b71f969d1726d8141d5bda05b3d7c
+Run: 39013080335
+Browser test exit: unavailable
 ==================
-TAP version 13
-# Actual GPU-rendered pectoral zone RGB: {"chest-upper":[253,247,246],"chest-mid":[253,247,246],"chest-lower":[253,247,245]}
-# Chest muscle actual per-region color distances: [0,1,1]
-# Subtest: GPU muscle labels point to their actual visible zones
-not ok 1 - GPU muscle labels point to their actual visible zones
-  ---
-  duration_ms: 6370.230975
-  type: 'test'
-  location: '/home/runner/work/Builder/Builder/tests/muscle-labels-browser.cjs:10:1'
-  failureType: 'testCodeFailure'
-  error: 'upper, middle and lower muscle patches are visually indistinguishable: [0,1,1]'
-  code: 'ERR_ASSERTION'
-  name: 'AssertionError'
-  expected: true
-  actual: false
-  operator: '=='
-  stack: |-
-    TestContext.<anonymous> (/home/runner/work/Builder/Builder/tests/muscle-labels-browser.cjs:120:12)
-    async Test.run (node:internal/test_runner/test:1054:7)
-    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
-  ...
-1..1
-# tests 1
-# suites 0
-# pass 0
-# fail 1
-# cancelled 0
-# skipped 0
-# todo 0
-# duration_ms 6561.208328
+No browser log
