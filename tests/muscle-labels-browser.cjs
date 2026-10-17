@@ -116,6 +116,28 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     assert.ok(samples[2][1] >= samples[1][1] + 14 && samples[2][1] > samples[2][2] + 10,
       'lower-chest GPU pixel is still muddy/dark rather than orange relative to mid-chest: '
         + JSON.stringify({ mid: samples[1], lower: samples[2] }));
+    // Catch regressions where the "lower chest" becomes only a thin,
+    // indistinguishable sliver despite retaining a visible label and color.
+    // Read the exact same GPU zone-ID mask that drives the interactive pins.
+    const chestCoverage = await page.evaluate(() => {
+      const c = document.querySelector('#bCanvas');
+      const ids = [ZONE['chest-upper'].i, ZONE['chest-mid'].i, ZONE['chest-lower'].i];
+      const counts = [0, 0, 0];
+      for (let y = 6; y < c.clientHeight - 6; y += 6) {
+        for (let x = 6; x < c.clientWidth - 6; x += 6) {
+          const z = Body.debug.pickAt(x, y);
+          const n = ids.indexOf(z);
+          if (n >= 0) counts[n]++;
+        }
+      }
+      const total = counts.reduce((a, b) => a + b, 0);
+      return { counts, total, shares: counts.map(n => n / Math.max(1, total)) };
+    });
+    console.log('Pectoralis actual visible GPU region coverage:', JSON.stringify(chestCoverage));
+    assert.ok(chestCoverage.total > 40, 'chest training regions have insufficient visible pixels');
+    assert.ok(chestCoverage.shares.every(share => share >= 0.10),
+      'a chest training region collapsed into an almost invisible sliver: '
+      + JSON.stringify(chestCoverage));
     console.log('Pectoral color key and inferior bounds:', JSON.stringify(anatomy));
     assert.ok(result.length > 0, 'at least one visible chest muscle must have a label');
     for (const p of result) {
