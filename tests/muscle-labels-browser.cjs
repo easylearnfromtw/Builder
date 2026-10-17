@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createServer } = require('node:http');
-const { readFileSync } = require('node:fs');
+const { readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { chromium } = require('playwright');
 
@@ -57,8 +57,13 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
       onScreen: point.x >= 0 && point.y >= 0 && point.x < document.querySelector('#bStage').clientWidth
         && point.y < document.querySelector('#bStage').clientHeight,
     })));
-    // Screenshot a real GPU render matching the iPhone's chest detail view.
-    await page.locator('#bStage').screenshot({ path: '/tmp/jianren-chest-v3.png' });
+    // Capture actual rendered pixels directly from the resolved WebGL framebuffer.
+    // Chromium clears the default buffer between frames; DOM screenshots of
+    // WebGL may contain only floating labels and a white background.
+    const captured = await page.evaluate(() => Body.debug.captureImage());
+    assert.ok(captured?.startsWith('data:image/png;base64,'), '3D capture unavailable');
+    const png = Buffer.from(captured.split(',')[1], 'base64');
+    writeFileSync('/tmp/jianren-chest-v3.png', png);
     const anatomy = await page.evaluate(() => ({
       lowerBounds: Body.debug.zone('chest-lower', 1)?.lo,
       swatches: [...document.querySelectorAll('#bLabels .bs-region')]
@@ -76,18 +81,7 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
     // Sample the actual GPU canvas at each (previously GPU-verified) zone
     // anchor. Testing chip CSS alone cannot detect indistinguishable muscle
     // shading under translucent clothing or lighting.
-    await page.evaluate(() => {
-      // Element screenshots include siblings stacked above the canvas.
-      // Hide callouts so sampling returns real muscle pixels, not the colored
-      // 10px DOM annotation circles that previously matched CSS swatches.
-      document.querySelector('#bLabels').style.visibility = 'hidden';
-      document.querySelector('#bLines').style.visibility = 'hidden';
-    });
-    const png = await page.locator('#bCanvas').screenshot();
-    await page.evaluate(() => {
-      document.querySelector('#bLabels').style.visibility = '';
-      document.querySelector('#bLines').style.visibility = '';
-    });
+    // captured PNG has no DOM callouts at all: it is pixel data from WebGL.
     const rgb = await page.evaluate(async ({ png, anchors }) => {
       const image = new Image();
       image.src = 'data:image/png;base64,' + png;
@@ -153,6 +147,20 @@ test('GPU muscle labels point to their actual visible zones', { timeout: 140000 
         assert.ok(Y('back-traps') < Y('back-lower'), 'Trapezius must be above lumbar musculature');
       if (group === 'legs' && Y('leg-quads') != null && Y('leg-calves') != null)
         assert.ok(Y('leg-quads') < Y('leg-calves'), 'Quadriceps must be above calves');
+    }
+    const bounds = await page.evaluate(() => Object.fromEntries(
+      ZONES.map(z => [z.id, [Body.debug.zone(z.id, 1), Body.debug.zone(z.id, -1)]
+        .filter(Boolean).map(x => ({ lo: x.lo, hi: x.hi, count: x.count }))])));
+    console.log('Actual generated anatomical zone bounds:', JSON.stringify(bounds));
+    for (const [zone, minimumY] of Object.entries({
+      'back-lats': 1.064, 'back-lower': .935, 'back-traps': 1.445,
+      'leg-glutes': .792, 'leg-quads': .529, 'leg-hams': .556,
+      'leg-calves': .154,
+    })) {
+      const areas = bounds[zone];
+      assert.ok(areas?.length, zone + ': zone completely vanished after envelope correction');
+      for (const region of areas) assert.ok(region.lo[1] >= minimumY,
+        zone + ': region leaks outside anatomical envelope: ' + JSON.stringify(region));
     }
     console.log('Real-WebGL visible muscle IDs by group:', JSON.stringify(totals));
     assert.deepEqual(errors, []);
