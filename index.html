@@ -5,7 +5,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>哲愷訓練日誌</title>
+<title>健人｜訓練日誌</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12110F" media="(prefers-color-scheme: dark)">
@@ -1051,7 +1051,7 @@ html.kb #liftTray{transform:translateY(220%); opacity:0; pointer-events:none}
   <div class="topbar-in glass">
     <div class="brand">
       <span class="logo" aria-hidden="true"><b>健人</b><i></i></span>
-      <div class="brand-t"><b id="brandName">哲愷訓練日誌</b><span class="release-label">3D 胸肌分區清晰版 v4.4 · 10.17</span></div>
+      <div class="brand-t"><b id="brandName">我的訓練日誌</b><span class="release-label">3D 胸肌分區清晰版 v4.4 · 10.17</span></div>
     </div>
     <div class="tb-actions">
       <button class="gbtn glass" type="button" data-act="lens" id="lensBtn" aria-pressed="false" aria-label="放大鏡"></button>
@@ -1302,7 +1302,7 @@ const GROUP_NAME = { chest: '胸部', back: '背部', shoulders: '肩部', arms:
 function freshState() {
   return {
     v: 1,
-    profile: { name: '林哲愷', goalSessions: 5, goalLifts: 3, goalKm: 20, goalMin: 300, birthYear: null, sex: null, bw: null, rest: 120, sound: true },
+    profile: { name: '', nameCustomized: false, goalSessions: 5, goalLifts: 3, goalKm: 20, goalMin: 300, birthYear: null, sex: null, bw: null, rest: 120, sound: true },
     exercises: DEFAULT_EX.map(e => ({ ...e })),
     templates: DEFAULT_TPL.map(t => ({ ...t, ex: [...t.ex] })),
     lifts: [], runs: [], active: null, exCleared: false,
@@ -1323,6 +1323,9 @@ function normalize(st) {
   if (!st || typeof st !== 'object') return f;
   const o = { ...f, ...st };
   o.profile = { ...f.profile, ...(st.profile || {}) };
+  // Legacy versions prefilled a real person's name. Clear only this old implicit default.
+  // Explicitly saved names in the new version are preserved, including the same name.
+  if (o.profile.name === '林哲愷' && o.profile.nameCustomized !== true) o.profile.name = '';
   o.exercises = Array.isArray(st.exercises) && st.exercises.length ? st.exercises : f.exercises;
   // make sure built-in exercises exist
   for (const e of f.exercises) if (!o.exercises.some(x => x.id === e.id)) o.exercises.push(e);
@@ -1342,7 +1345,8 @@ let S = (() => {
   const raw = Store.load();
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const restored = normalize(raw);
-    if ((Array.isArray(raw.lifts) && raw.lifts.some(l => l?.ex === true)) ||
+    if (restored.profile.name !== raw.profile?.name ||
+        (Array.isArray(raw.lifts) && raw.lifts.some(l => l?.ex === true)) ||
         (Array.isArray(raw.runs) && raw.runs.some(r => r?.ex === true))) {
       Store.save(restored);
     }
@@ -5837,7 +5841,7 @@ const Welcome = (() => {
     return `
       <div class="wl-hero small-hero">${ringSVG()}<h1 class="wl-title">${title('基本資料')}</h1><p class="wl-sub">用來算同齡比較，只存在這台裝置。之後可以在設定修改。</p></div>
       <div class="wl-form">
-        <div class="field"><label for="wl-name">名字</label><input id="wl-name" class="inp" value="${esc(p.name || '')}"></div>
+        <div class="field"><label for="wl-name">名字</label><input id="wl-name" class="inp" placeholder="可自行填寫（選填）" value="${esc(p.name || '')}"></div>
         <div class="grid3">
           <div class="field"><label for="wl-by">出生年</label><input id="wl-by" class="inp" inputmode="numeric" placeholder="例如 ${yNow - 25}" value="${p.birthYear || ''}"></div>
           <div class="field"><label for="wl-sx">性別</label><select id="wl-sx" class="inp"><option value="">選擇</option><option value="m"${p.sex === 'm' ? ' selected' : ''}>男</option><option value="f"${p.sex === 'f' ? ' selected' : ''}>女</option></select></div>
@@ -5866,7 +5870,8 @@ const Welcome = (() => {
     if (saveProfile) {
       const name = $('#wl-name')?.value.trim(); const by = num($('#wl-by')?.value); const sx = $('#wl-sx')?.value; const bw = num($('#wl-bw')?.value);
       const yNow = new Date().getFullYear();
-      if (name) S.profile.name = name;
+      S.profile.name = name || '';
+      S.profile.nameCustomized = Boolean(name);
       if (by && by > 1920 && by <= yNow - 8) S.profile.birthYear = Math.round(by);
       if (sx) S.profile.sex = sx;
       if (bw && bw > 25 && bw < 260) S.profile.bw = Math.round(bw * 10) / 10;
@@ -6908,7 +6913,7 @@ function openSettings(from) {
       const p = S.profile;
       body.innerHTML = `<h2 class="stitle">設定與備份</h2>
         <div class="formgrid">
-          <div class="field"><label for="pf-name">名字</label><input id="pf-name" class="inp" data-pf="name" value="${esc(p.name)}"></div>
+          <div class="field"><label for="pf-name">名字</label><input id="pf-name" class="inp" data-pf="name" placeholder="可自行填寫（選填）" value="${esc(p.name || '')}"></div>
           <div class="grid2">
             <div class="field"><label for="pf-gs">每週訓練目標（次）</label><input id="pf-gs" class="inp" inputmode="numeric" data-pf="goalSessions" value="${p.goalSessions}"></div>
             <div class="field"><label for="pf-gk">每週跑量目標（km）</label><input id="pf-gk" class="inp" inputmode="decimal" data-pf="goalKm" value="${p.goalKm}"></div>
@@ -6946,7 +6951,7 @@ function openSettings(from) {
 function importBackup(text) {
   let data;
   try { data = JSON.parse(text); } catch (e) { toast('看不懂這段備份，請確認是完整複製的內容'); return; }
-  if (!data || !Array.isArray(data.lifts) || !Array.isArray(data.runs)) { toast('這不是哲愷訓練日誌的備份'); return; }
+  if (!data || !Array.isArray(data.lifts) || !Array.isArray(data.runs)) { toast('這不是健人訓練日誌的備份'); return; }
   S = normalize(data);
   commit(); closeSheet(); Box.texturesDirty();
   toast(`已匯入 ${S.lifts.length} 筆重訓、${S.runs.length} 筆跑步`);
@@ -7335,7 +7340,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.pf) {
     const k = t.dataset.pf;
-    if (k === 'name') S.profile.name = t.value.trim() || '林哲愷';
+    if (k === 'name') { S.profile.name = t.value.trim(); S.profile.nameCustomized = true; }
     else if (k === 'sex') S.profile.sex = t.value || null;
     else if (k === 'birthYear') { const n = num(t.value), y = new Date().getFullYear(); S.profile.birthYear = n && n > 1920 && n <= y - 8 ? Math.round(n) : null; if (!S.profile.birthYear) t.value = ''; }
     else if (k === 'bw') { const n = num(t.value); S.profile.bw = n && n > 25 && n < 260 ? Math.round(n * 10) / 10 : null; if (!S.profile.bw) t.value = ''; }
