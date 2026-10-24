@@ -1,4 +1,4 @@
-# 健人｜哲愷訓練日誌
+# 健人｜訓練日誌
 
 個人化重訓及跑步日誌，採用純前端 HTML/CSS/JavaScript。正式網址（需先開啟 GitHub Pages）：https://easylearnfromtw.github.io/Builder/
 
